@@ -61,6 +61,23 @@ function buildUserMessage({ question, node, signals, neighbours }) {
   return lines.join('\n')
 }
 
+/** Short natural-language utterance for PRISM scoring — not the system prompt. */
+function buildPrismInput({ question, node, signals, neighbours }) {
+  const bits = [question]
+  if (node) {
+    const score = node.riskScore == null ? 'n/a' : Number(node.riskScore).toFixed(2)
+    bits.push(
+      `Selected node ${node.id} is a ${node.type} in ${node.region} (${node.product || 'unknown'}), risk ${score}${node.isFlagged ? ', flagged' : ''}. ${neighbours.upstream} upstream shipments, ${neighbours.downstream} downstream sales.`,
+    )
+  }
+  if (signals[0]) bits.push(signals[0])
+  return bits.join(' ').slice(0, 1500)
+}
+
+function prismModelName(model) {
+  return String(model || 'unknown').split('/').pop() || 'unknown'
+}
+
 async function callGemini(apiKey, userMessage, env = process.env) {
   const model = env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
@@ -141,52 +158,62 @@ async function postPrismTrace(env, payload) {
     }
   }
 
-  const response = await fetch(`${host}/api/traces`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-PRISMtrace-Key': apiKey,
+  const body = JSON.stringify({
+    project_id: projectId,
+    model: prismModelName(payload.model),
+    input_messages: payload.inputMessages,
+    output_message: String(payload.outputMessage || '').slice(0, 4000),
+    latency_ms: Math.max(0, Math.round(Number(payload.latencyMs) || 0)),
+    session_id: payload.sessionId,
+    agent_id: AGENT_ID,
+    agent_name: AGENT_NAME,
+    token_count_input: payload.tokenCountInput ?? 0,
+    token_count_output: payload.tokenCountOutput ?? 0,
+    metadata: {
+      source: 'counterfeittrace',
+      node_id: payload.nodeId || null,
+      provider: payload.provider,
     },
-    signal: AbortSignal.timeout(20000),
-    body: JSON.stringify({
-      project_id: projectId,
-      model: payload.model,
-      input_messages: payload.inputMessages,
-      output_message: payload.outputMessage,
-      latency_ms: payload.latencyMs,
-      session_id: payload.sessionId,
-      agent_id: AGENT_ID,
-      agent_name: AGENT_NAME,
-      token_count_input: payload.tokenCountInput ?? 0,
-      token_count_output: payload.tokenCountOutput ?? 0,
-      metadata: {
-        source: 'counterfeittrace',
-        node_id: payload.nodeId || null,
-        provider: payload.provider,
-        agent_id: AGENT_ID,
-        agent_name: AGENT_NAME,
-        session_id: payload.sessionId,
-      },
-    }),
   })
 
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) {
+  async function send() {
+    const response = await fetch(`${host}/api/traces`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-PRISMtrace-Key': apiKey,
+      },
+      signal: AbortSignal.timeout(25000),
+      body,
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      return {
+        ok: false,
+        skipped: false,
+        status: response.status,
+        reason: data?.error || data?.message || `PRISM HTTP ${response.status}`,
+        host,
+      }
+    }
     return {
-      ok: false,
-      skipped: false,
-      status: response.status,
-      reason: data?.error || data?.message || `PRISM HTTP ${response.status}`,
+      ok: true,
+      id: data.id || data.trace_id || null,
+      sessionId: data.session_id || payload.sessionId,
+      costUsd: data.cost_usd ?? null,
       host,
     }
   }
 
-  return {
-    ok: true,
-    id: data.id || data.trace_id || null,
-    sessionId: data.session_id || payload.sessionId,
-    costUsd: data.cost_usd ?? null,
-    host,
+  try {
+    return await send()
+  } catch (error) {
+    return {
+      ok: false,
+      skipped: false,
+      reason: error.message || 'PRISM request failed',
+      host,
+    }
   }
 }
 
@@ -222,6 +249,7 @@ export async function runInvestigate(body, env = process.env) {
     `ct-${node?.id || 'network'}`
 
   const userMessage = buildUserMessage({ question, node, signals, neighbours })
+  const prismInput = buildPrismInput({ question, node, signals, neighbours })
   const started = Date.now()
 
   let completion
@@ -253,7 +281,7 @@ export async function runInvestigate(body, env = process.env) {
   const prism = await postPrismTrace(env, {
     model: completion.model,
     provider: completion.provider,
-    inputMessages: [{ role: 'user', content: userMessage }],
+    inputMessages: [{ role: 'user', content: prismInput }],
     outputMessage: completion.text,
     latencyMs,
     sessionId,
