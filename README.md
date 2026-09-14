@@ -9,8 +9,8 @@ CounterfeitTrace models a physical distribution network (medicines, seeds, ferti
 | `data/` | Synthetic data generation scripts and the generated `nodes.csv`, `edges.csv`, `anomaly_labels.csv` |
 | `model/` | PyTorch Geometric graph loading, training, inference, saved checkpoints |
 | `backend/` | Supabase client/config and scripts that push the graph + risk scores into Postgres |
-| `frontend/` | Vite site: Three.js 3D graph, GSAP + Lenis scroll storytelling, Rive accents |
-| `frontend/components/` | Reusable UI components (buttons, cards, panels, stat readouts) |
+| `frontend/` | Vite + React + Tailwind site: Three.js 3D graph, GSAP + Lenis scroll storytelling, Rive accents |
+| `frontend/components/` | Reusable React UI components (cards, panels, badges, stat readouts) |
 
 ## Quickstart
 
@@ -28,4 +28,13 @@ cd frontend && npm install && npm run dev
 
 ## Status
 
-Step 1 (structure) and Step 2 (synthetic data generator) complete. Model, backend sync, and frontend implementation are still placeholders.
+Steps 1–2 (structure, synthetic data generator) and the frontend are in place: Vite + React +
+Tailwind, with the real generated dataset rendering in 3D. `frontend/scripts/sync-data.js`
+copies `data/*.csv` into `frontend/public/data/` on every `dev`/`build`, `useGraphData` parses
+them with papaparse, and the hero draws all 142 nodes as one `InstancedMesh` and all 1,666
+transactions as one `LineSegments`, coloured by node type. Three.js, GSAP, Lenis and Rive are
+mounted imperatively from `useEffect` hooks rather than through a React wrapper.
+
+Still placeholders: GNN model training (`model/`), the Supabase data layer replacing the CSV
+fetch (`backend/` + `frontend/src/hooks/useGraphData.js`), and everything that needs a risk
+score — risk colouring, `NodeCard`, `AlertList`, Rive accents.

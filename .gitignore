@@ -41,6 +41,10 @@ frontend/dist/
 frontend/.vite/
 .vite/
 *.tsbuildinfo
+
+# Copies of the generated dataset served to the frontend; rebuilt from /data by
+# `npm run sync:data`, which runs automatically before `dev` and `build`.
+frontend/public/data/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
