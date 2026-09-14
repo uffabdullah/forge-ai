@@ -1,0 +1,21 @@
+{
+  "name": "counterfeittrace-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "3D supply-chain graph visualization + scroll storytelling site for CounterfeitTrace",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@rive-app/canvas": "^2.42.1",
+    "gsap": "^3.15.0",
+    "lenis": "^1.3.26",
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.0"
+  }
+}

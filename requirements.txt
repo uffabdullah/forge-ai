@@ -1,0 +1,8 @@
+# Python dependencies for data/, model/ and backend/.
+# Deliberately empty for now — fill this in as you add packages, e.g.
+#   pandas
+#   numpy
+#   torch
+#   torch-geometric
+#   supabase
+#   python-dotenv
