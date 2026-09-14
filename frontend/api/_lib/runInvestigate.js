@@ -67,6 +67,7 @@ async function callGemini(apiKey, userMessage, env = process.env) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(12000),
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
       contents: [{ role: 'user', parts: [{ text: userMessage }] }],
@@ -98,11 +99,12 @@ async function callGroq(apiKey, userMessage, env = process.env) {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
+    signal: AbortSignal.timeout(12000),
     body: JSON.stringify({
       model,
       temperature: 0.3,
-      max_tokens: 512,
-      include_reasoning: false,
+      max_completion_tokens: 256,
+      reasoning_effort: 'low',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMessage },
@@ -115,7 +117,7 @@ async function callGroq(apiKey, userMessage, env = process.env) {
     throw new Error(detail)
   }
   const message = data?.choices?.[0]?.message || {}
-  const text = String(message.content || '').trim() || String(message.reasoning || '').trim()
+  const text = String(message.content || '').trim()
   if (!text) throw new Error('Groq returned an empty reply')
   const usage = data?.usage || {}
   return {
@@ -145,6 +147,7 @@ async function postPrismTrace(env, payload) {
       'Content-Type': 'application/json',
       'X-PRISMtrace-Key': apiKey,
     },
+    signal: AbortSignal.timeout(8000),
     body: JSON.stringify({
       project_id: projectId,
       model: payload.model,
