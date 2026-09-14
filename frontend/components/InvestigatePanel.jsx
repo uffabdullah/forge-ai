@@ -31,7 +31,16 @@ export default function InvestigatePanel({
   const [result, setResult] = useState(null)
 
   const neighbours = useMemo(() => neighbourCounts(node, edges), [node, edges])
-  const sessionId = node ? `ct-${node.id}` : 'ct-network'
+  const sessionId = useMemo(() => {
+    if (typeof window === 'undefined') return 'ct-demo'
+    const key = 'ct-prism-session'
+    let id = sessionStorage.getItem(key)
+    if (!id) {
+      id = `ct-demo-${Date.now()}`
+      sessionStorage.setItem(key, id)
+    }
+    return id
+  }, [])
 
   async function onSubmit(event) {
     event.preventDefault()

@@ -102,6 +102,7 @@ async function callGroq(apiKey, userMessage, env = process.env) {
       model,
       temperature: 0.3,
       max_tokens: 512,
+      include_reasoning: false,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMessage },
@@ -159,6 +160,9 @@ async function postPrismTrace(env, payload) {
         source: 'counterfeittrace',
         node_id: payload.nodeId || null,
         provider: payload.provider,
+        agent_id: AGENT_ID,
+        agent_name: AGENT_NAME,
+        session_id: payload.sessionId,
       },
     }),
   })
@@ -246,10 +250,7 @@ export async function runInvestigate(body, env = process.env) {
   const prism = await postPrismTrace(env, {
     model: completion.model,
     provider: completion.provider,
-    inputMessages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userMessage },
-    ],
+    inputMessages: [{ role: 'user', content: userMessage }],
     outputMessage: completion.text,
     latencyMs,
     sessionId,
