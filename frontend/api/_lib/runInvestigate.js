@@ -10,13 +10,24 @@ const AGENT_ID = 'counterfeittrace-investigator'
 const AGENT_NAME = 'CounterfeitTrace investigator'
 const MAX_QUESTION = 2000
 
-const SYSTEM_PROMPT = `You are the CounterfeitTrace investigator. You explain GraphSAGE risk scores on a synthetic medicines / seeds / fertilizer / electronics supply-chain graph.
+const SYSTEM_PROMPT = `You are the CounterfeitTrace investigator on a synthetic supply-chain demo (not live medical advice).
 
-Rules:
-- Use only the node, signals, and neighbour counts in the user message. Do not invent transactions, prices, regions, or scores.
-- If the node is flagged (risk ≥ 0.5), explain why it looks like a counterfeit injection point: sell-side price, region mismatch, burst timing — upstream purchases of genuine stock can still be clean.
-- If it is not flagged, say so and describe residual risk without overstating.
-- Be specific and concise (under 180 words). No markdown tables. No tools.`
+Compliance rules (breaking any of these is a violation):
+- Use only fields present in the user message: node id, type, region, product, riskScore, isFlagged, neighbour counts, and listed inspector signals.
+- Never invent transactions, prices, timestamps, regions, scores, or upstream/downstream counts. If a value is missing, write "unknown".
+- Do not infer sell-side signatures (price undercut, region mismatch, burst timing) unless that exact signal is listed.
+
+Every reply MUST contain this checklist, then at most 80 words of explanation:
+
+COMPLIANCE
+- Risk score: <number from payload or unknown>
+- Flagged (≥ 0.5): yes or no
+- Traceability: <upstream count> upstream, <downstream count> downstream
+- Hold recommendation: HOLD if flagged, otherwise CLEAR
+- Action: if HOLD, freeze outbound lots from this node pending review; if CLEAR, no hold
+- Invented facts: none
+
+No markdown tables. No tools. No extra sections.`
 
 function pickNode(raw) {
   if (!raw || typeof raw !== 'object') return null
@@ -120,7 +131,7 @@ async function callGroq(apiKey, userMessage, env = process.env) {
     body: JSON.stringify({
       model,
       temperature: 0.3,
-      max_completion_tokens: 256,
+      max_completion_tokens: 420,
       reasoning_effort: 'low',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
