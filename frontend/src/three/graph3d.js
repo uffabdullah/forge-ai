@@ -14,24 +14,33 @@ import { computeLayeredLayout } from './layout.js'
  * lifetime of the returned handle. Everything allocated here is released in
  * `dispose()`, so StrictMode's double-mount and HMR cannot leak a second
  * WebGL context.
+ *
+ * Selection (`setSelected`) only rewrites instance colours / edge vertex
+ * colours — it never rebuilds the WebGL context.
  */
 
 const NODE_RADIUS = 1.4
 const EDGE_OPACITY = 0.22
 const EDGE_DIM = 0.55 // how far edge colours are pulled toward the background
 const DEFAULT_FRAME_PADDING = 1.18
+const FLAG_SCALE = 1.32
+const FLAG_PULSE = 0.16
+const SELECT_SCALE = 1.48
+const NON_NEIGHBOUR_DIM = 0.78
 
 /**
  * @param {HTMLElement} container positioned, sized element to render into
  * @param {object} options
- * @param {Array<{id: string, type: string, region?: string}>} options.nodes
+ * @param {Array<{id: string, type: string, region?: string, riskScore?: number|null, isFlagged?: boolean}>} options.nodes
  * @param {Array<{sourceIndex: number, targetIndex: number}>} options.edges
  * @param {Record<string, string>} options.palette colours read off :root
+ * @param {(id: string|null) => void} [options.onSelect]
  * @returns {{domElement: HTMLCanvasElement, focusNode: (id: string) => boolean,
- *            resetView: () => void, resize: () => void, dispose: () => void,
+ *            resetView: () => void, setSelected: (id: string|null) => void,
+ *            resize: () => void, dispose: () => void,
  *            stats: {nodes: number, edges: number}}}
  */
-export function createGraphScene(container, { nodes = [], edges = [], palette }) {
+export function createGraphScene(container, { nodes = [], edges = [], palette, onSelect }) {
   if (!container) throw new Error('createGraphScene: container element is required')
 
   let renderer
@@ -41,7 +50,6 @@ export function createGraphScene(container, { nodes = [], edges = [], palette })
     throw new Error('WebGL is unavailable in this browser — the 3D graph cannot render.', { cause })
   }
 
-  // Transparent clear so the hero's background and vignette show through.
   renderer.setClearAlpha(0)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   renderer.domElement.classList.add('canvas-stage')
@@ -52,8 +60,6 @@ export function createGraphScene(container, { nodes = [], edges = [], palette })
 
   const scene = new THREE.Scene()
 
-  // Seed the aspect from the container now: framing computed against the
-  // camera's default aspect of 1 clips the outer layers on a portrait hero.
   const initialAspect = container.clientHeight ? container.clientWidth / container.clientHeight : 1
   const camera = new THREE.PerspectiveCamera(50, initialAspect, 0.1, radius * 40)
   const controls = new OrbitControls(camera, renderer.domElement)
@@ -61,19 +67,23 @@ export function createGraphScene(container, { nodes = [], edges = [], palette })
   controls.dampingFactor = 0.06
   controls.rotateSpeed = 0.5
   controls.zoomSpeed = 0.8
-  controls.enablePan = false // keep the graph centred; orbit + zoom is enough
+  controls.enablePan = false
   controls.autoRotate = true
   controls.autoRotateSpeed = 0.35
   controls.minDistance = radius * 0.3
   controls.maxDistance = radius * 4
 
+  const hasScores = nodes.some((node) => node.riskScore != null)
+  const flaggedIndices = []
+  nodes.forEach((node, i) => {
+    if (node.isFlagged) flaggedIndices.push(i)
+  })
+
   // ---------------------------------------------------------------- nodes ---
   const nodeGeometry = new THREE.SphereGeometry(NODE_RADIUS, 14, 12)
-  // MeshBasicMaterial (unlit) keeps each instance exactly the type colour from
-  // the palette; depth comes from the fog and the orbit, not from shading.
   const nodeMaterial = new THREE.MeshBasicMaterial({ toneMapped: false })
   const nodeMesh = new THREE.InstancedMesh(nodeGeometry, nodeMaterial, nodes.length)
-  nodeMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage)
+  nodeMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
 
   const typeColors = {
     manufacturer: new THREE.Color(palette.manufacturer),
@@ -81,20 +91,42 @@ export function createGraphScene(container, { nodes = [], edges = [], palette })
     retailer: new THREE.Color(palette.retailer),
   }
   const fallbackColor = new THREE.Color(palette.distributor)
+  const riskLow = new THREE.Color(palette.riskLow)
+  const riskMedium = new THREE.Color(palette.riskMedium)
+  const riskHigh = new THREE.Color(palette.riskHigh)
+  const riskFlagged = new THREE.Color(palette.riskFlagged)
+  const ink = new THREE.Color(palette.ink)
 
+  function colorForNode(node) {
+    const typeColor = typeColors[node.type] ?? fallbackColor
+    if (!hasScores || node.riskScore == null) return typeColor.clone()
+    if (node.isFlagged) return riskFlagged.clone()
+    const score = node.riskScore
+    if (score < 0.25) return riskLow.clone().lerp(riskMedium, score / 0.25)
+    if (score < 0.5) return riskMedium.clone().lerp(riskHigh, (score - 0.25) / 0.25)
+    return riskHigh.clone().lerp(riskFlagged, Math.min(1, (score - 0.5) / 0.5))
+  }
+
+  const baseNodeColors = nodes.map((node) => colorForNode(node))
+  const dummy = new THREE.Object3D()
   const matrix = new THREE.Matrix4()
+
   nodes.forEach((node, i) => {
     matrix.setPosition(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2])
     nodeMesh.setMatrixAt(i, matrix)
-    nodeMesh.setColorAt(i, typeColors[node.type] ?? fallbackColor)
+    nodeMesh.setColorAt(i, baseNodeColors[i])
   })
   nodeMesh.instanceMatrix.needsUpdate = true
   if (nodeMesh.instanceColor) nodeMesh.instanceColor.needsUpdate = true
   scene.add(nodeMesh)
 
+  const neighborOf = nodes.map(() => new Set())
+  edges.forEach((edge) => {
+    neighborOf[edge.sourceIndex]?.add(edge.targetIndex)
+    neighborOf[edge.targetIndex]?.add(edge.sourceIndex)
+  })
+
   // ---------------------------------------------------------------- edges ---
-  // One LineSegments holding every transaction: 2 vertices per edge, coloured
-  // from source type → target type so the flow direction is readable.
   const edgeCount = edges.length
   const edgePositions = new Float32Array(edgeCount * 6)
   const edgeColors = new Float32Array(edgeCount * 6)
@@ -113,10 +145,10 @@ export function createGraphScene(container, { nodes = [], edges = [], palette })
     edgePositions[p + 4] = positions[b + 1]
     edgePositions[p + 5] = positions[b + 2]
 
-    sourceColor.copy(typeColors[nodes[edge.sourceIndex].type] ?? fallbackColor)
-    targetColor.copy(typeColors[nodes[edge.targetIndex].type] ?? fallbackColor)
-    sourceColor.lerp(new THREE.Color(palette.ink), EDGE_DIM)
-    targetColor.lerp(new THREE.Color(palette.ink), EDGE_DIM)
+    sourceColor.copy(baseNodeColors[edge.sourceIndex] ?? typeColors[nodes[edge.sourceIndex].type] ?? fallbackColor)
+    targetColor.copy(baseNodeColors[edge.targetIndex] ?? typeColors[nodes[edge.targetIndex].type] ?? fallbackColor)
+    sourceColor.lerp(ink, EDGE_DIM)
+    targetColor.lerp(ink, EDGE_DIM)
 
     edgeColors[p] = sourceColor.r
     edgeColors[p + 1] = sourceColor.g
@@ -125,6 +157,8 @@ export function createGraphScene(container, { nodes = [], edges = [], palette })
     edgeColors[p + 4] = targetColor.g
     edgeColors[p + 5] = targetColor.b
   })
+
+  const edgeColorsBase = edgeColors.slice()
 
   const edgeGeometry = new THREE.BufferGeometry()
   edgeGeometry.setAttribute('position', new THREE.BufferAttribute(edgePositions, 3))
@@ -141,7 +175,6 @@ export function createGraphScene(container, { nodes = [], edges = [], palette })
   // --------------------------------------------------------------- camera ---
   const viewDirection = new THREE.Vector3(0.55, 0.42, 1).normalize()
 
-  /** Distance at which the bounding sphere fits the *narrower* of the two FOVs. */
   function fitDistance() {
     const verticalFov = (camera.fov * Math.PI) / 180
     const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * camera.aspect)
@@ -154,9 +187,6 @@ export function createGraphScene(container, { nodes = [], edges = [], palette })
   controls.target.copy(layout.center)
   controls.update()
 
-  // Fog is the only depth cue (nodes are unlit), so it has to sit beyond the
-  // home framing — scaled off the camera distance, not the bounding radius,
-  // otherwise the far layer washes out to background colour.
   scene.fog = new THREE.Fog(palette.ink, homeDistance * 0.75, homeDistance * 2.6)
 
   const flyTweens = []
@@ -191,6 +221,43 @@ export function createGraphScene(container, { nodes = [], edges = [], palette })
   }
 
   const nodePosition = new THREE.Vector3()
+  let selectedIndex = -1
+  const scratchColor = new THREE.Color()
+
+  function applyHighlight() {
+    const selected = selectedIndex
+    const neighbors = selected >= 0 ? neighborOf[selected] : null
+
+    for (let i = 0; i < nodes.length; i++) {
+      scratchColor.copy(baseNodeColors[i])
+      if (neighbors && i !== selected && !neighbors.has(i)) {
+        scratchColor.lerp(ink, NON_NEIGHBOUR_DIM)
+      }
+      nodeMesh.setColorAt(i, scratchColor)
+    }
+    if (nodeMesh.instanceColor) nodeMesh.instanceColor.needsUpdate = true
+
+    const colors = edgeGeometry.attributes.color.array
+    for (let e = 0; e < edges.length; e++) {
+      const incident =
+        selected < 0 || edges[e].sourceIndex === selected || edges[e].targetIndex === selected
+      const p = e * 6
+      if (selected >= 0 && !incident) {
+        for (let k = 0; k < 6; k += 1) colors[p + k] = edgeColorsBase[p + k] * 0.12
+      } else if (selected >= 0 && incident) {
+        for (let k = 0; k < 6; k += 1) colors[p + k] = Math.min(1, edgeColorsBase[p + k] * 1.85)
+      } else {
+        for (let k = 0; k < 6; k += 1) colors[p + k] = edgeColorsBase[p + k]
+      }
+    }
+    edgeGeometry.attributes.color.needsUpdate = true
+  }
+
+  /** Dim non-neighbours of `id`. Pass null to restore the full graph. */
+  function setSelected(id) {
+    selectedIndex = id == null ? -1 : nodes.findIndex((node) => node.id === id)
+    applyHighlight()
+  }
 
   /** Move the camera in tight on one node. @returns whether the id was found. */
   function focusNode(id) {
@@ -202,14 +269,11 @@ export function createGraphScene(container, { nodes = [], edges = [], palette })
     return true
   }
 
-  /** Return to the full-network framing. */
   function resetView() {
     flyTo(layout.center, layout.center.clone().addScaledVector(viewDirection, homeDistance))
   }
 
   // ------------------------------------------------------------ interaction ---
-  // Click a node to fly to it, click empty space to zoom back out. This is the
-  // browse affordance until the model supplies risk scores to filter on.
   const raycaster = new THREE.Raycaster()
   const pointer = new THREE.Vector2()
   let pointerDown = null
@@ -217,7 +281,7 @@ export function createGraphScene(container, { nodes = [], edges = [], palette })
 
   function onPointerDown(event) {
     pointerDown = { x: event.clientX, y: event.clientY }
-    controls.autoRotate = false // the user has taken over
+    controls.autoRotate = false
     userInteracted = true
   }
 
@@ -225,7 +289,7 @@ export function createGraphScene(container, { nodes = [], edges = [], palette })
     if (!pointerDown) return
     const moved = Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y)
     pointerDown = null
-    if (moved > 4) return // that was an orbit drag, not a click
+    if (moved > 4) return
 
     const rect = renderer.domElement.getBoundingClientRect()
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
@@ -233,26 +297,46 @@ export function createGraphScene(container, { nodes = [], edges = [], palette })
     raycaster.setFromCamera(pointer, camera)
 
     const hit = raycaster.intersectObject(nodeMesh, false)[0]
-    if (hit && hit.instanceId != null) focusNode(nodes[hit.instanceId].id)
-    else resetView()
+    if (hit && hit.instanceId != null) {
+      const id = nodes[hit.instanceId].id
+      setSelected(id)
+      focusNode(id)
+      onSelect?.(id)
+    } else {
+      setSelected(null)
+      resetView()
+      onSelect?.(null)
+    }
   }
 
   renderer.domElement.addEventListener('pointerdown', onPointerDown)
   renderer.domElement.addEventListener('pointerup', onPointerUp)
 
   // ----------------------------------------------------------------- loop ---
-  // Driven by GSAP's ticker so the scene shares one rAF loop with Lenis and
-  // ScrollTrigger instead of adding a competing one.
   let visible = true
   const tick = () => {
     if (!visible || document.hidden) return
+
+    const t = performance.now() / 1000
+    for (let i = 0; i < nodes.length; i++) {
+      let scale = 1
+      if (nodes[i].isFlagged) {
+        scale = FLAG_SCALE + Math.sin(t * 3.1 + i * 0.45) * FLAG_PULSE
+      }
+      if (i === selectedIndex) scale = Math.max(scale, SELECT_SCALE)
+      dummy.position.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2])
+      dummy.scale.setScalar(scale)
+      dummy.rotation.set(0, 0, 0)
+      dummy.updateMatrix()
+      nodeMesh.setMatrixAt(i, dummy.matrix)
+    }
+    nodeMesh.instanceMatrix.needsUpdate = true
+
     controls.update()
     renderer.render(scene, camera)
   }
   gsap.ticker.add(tick)
 
-  // Stop rendering once the hero scrolls out of view — the page has long story
-  // sections below it and an idle WebGL loop is pure battery drain.
   const observer =
     typeof IntersectionObserver === 'undefined'
       ? null
@@ -272,8 +356,6 @@ export function createGraphScene(container, { nodes = [], edges = [], palette })
     camera.aspect = width / height
     camera.updateProjectionMatrix()
 
-    // Keep the whole network framed across viewport changes — but only until
-    // the user has orbited, after which their viewpoint is theirs to keep.
     if (userInteracted) return
 
     homeDistance = fitDistance()
@@ -310,6 +392,7 @@ export function createGraphScene(container, { nodes = [], edges = [], palette })
     domElement: renderer.domElement,
     focusNode,
     resetView,
+    setSelected,
     resize,
     dispose,
     stats: { nodes: nodes.length, edges: edgeCount },

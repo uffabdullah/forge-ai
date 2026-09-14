@@ -1,20 +1,37 @@
+import { useEffect } from 'react'
+
 import { useGraphScene } from '@/hooks/useGraphScene.js'
 
 /**
  * Container for the WebGL graph. Owns the mount element, hands the parsed data
  * to the imperative scene, and reports failure inline instead of leaving an
- * empty black hero. Data comes in as props (see `useGraphData` in App) so this
- * component stays a thin bridge between React state and the scene module.
+ * empty black hero. Selection is applied through `scene.setSelected` so the
+ * WebGL context is never rebuilt.
  */
-export default function GraphStage({ nodes, edges, status, error }) {
-  const { mountRef, ready, error: sceneError } = useGraphScene({ nodes, edges })
+export default function GraphStage({
+  nodes,
+  edges,
+  status,
+  error,
+  selectedId = null,
+  onSelect,
+  sceneRef: apiRef,
+}) {
+  const { mountRef, sceneRef, ready, error: sceneError } = useGraphScene({ nodes, edges, onSelect })
+
+  useEffect(() => {
+    if (apiRef) apiRef.current = sceneRef.current
+  })
+
+  useEffect(() => {
+    sceneRef.current?.setSelected?.(selectedId ?? null)
+  }, [selectedId, ready, sceneRef])
 
   const failure = error || sceneError
   const pending = !failure && (status === 'loading' || !ready)
 
   return (
     <div className="relative h-full w-full">
-      {/* The scene appends its own <canvas class="canvas-stage"> here. */}
       <div ref={mountRef} className="absolute inset-0" />
 
       {pending && (

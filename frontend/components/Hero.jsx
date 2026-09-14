@@ -5,11 +5,14 @@
  * copy (the caller owns whatever mounts into it, e.g. the WebGL graph). The
  * copy is `pointer-events-none` so dragging anywhere on the hero reaches the
  * canvas — add `pointer-events-auto` to the specific element if a real control
- * (button, link) is ever placed here.
+ * (button, link, inspector panel) is ever placed here.
  */
-export default function Hero({ eyebrow, title, subtitle, stats = [], stage }) {
+export default function Hero({ id = 'hero', eyebrow, title, subtitle, stats = [], stage, overlay }) {
   return (
-    <section className="relative isolate flex min-h-screen flex-col items-center justify-center overflow-hidden px-6">
+    <section
+      id={id}
+      className="relative isolate flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 pt-16"
+    >
       {/* 3D / background layer */}
       <div className="absolute inset-0 z-0">{stage}</div>
 
@@ -43,8 +46,10 @@ export default function Hero({ eyebrow, title, subtitle, stats = [], stage }) {
       </div>
 
       <p className="pointer-events-none absolute bottom-8 z-10 font-mono text-xs text-slate-600">
-        drag to orbit · scroll ↓
+        drag to orbit · click a node · scroll ↓
       </p>
+
+      {overlay ? <div className="pointer-events-none absolute inset-0 z-20">{overlay}</div> : null}
     </section>
   )
 }

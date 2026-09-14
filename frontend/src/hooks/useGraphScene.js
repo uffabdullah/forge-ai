@@ -12,13 +12,15 @@ import { readPalette } from '@/three/palette.js'
  * selecting a node or reading status from state never rebuilds the WebGL
  * context.
  *
- * @param {{nodes: Array, edges: Array}} data parsed graph, from useGraphData
+ * @param {{nodes: Array, edges: Array, onSelect?: (id: string|null) => void}} data
  * @returns {{mountRef: React.RefObject<HTMLDivElement>, sceneRef: React.RefObject,
  *            ready: boolean, error: Error|null}}
  */
-export function useGraphScene({ nodes, edges }) {
+export function useGraphScene({ nodes, edges, onSelect }) {
   const mountRef = useRef(null)
   const sceneRef = useRef(null)
+  const onSelectRef = useRef(onSelect)
+  onSelectRef.current = onSelect
   const [ready, setReady] = useState(false)
   const [error, setError] = useState(null)
 
@@ -27,7 +29,12 @@ export function useGraphScene({ nodes, edges }) {
 
     let scene
     try {
-      scene = createGraphScene(mountRef.current, { nodes, edges, palette: readPalette() })
+      scene = createGraphScene(mountRef.current, {
+        nodes,
+        edges,
+        palette: readPalette(),
+        onSelect: (id) => onSelectRef.current?.(id),
+      })
     } catch (cause) {
       setError(cause instanceof Error ? cause : new Error(String(cause)))
       return
