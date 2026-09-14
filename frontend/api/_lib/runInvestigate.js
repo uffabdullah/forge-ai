@@ -147,7 +147,7 @@ async function postPrismTrace(env, payload) {
       'Content-Type': 'application/json',
       'X-PRISMtrace-Key': apiKey,
     },
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(20000),
     body: JSON.stringify({
       project_id: projectId,
       model: payload.model,
