@@ -4,8 +4,8 @@
  * answer plus a PRISM trace id.
  */
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash'
-const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
+const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash'
+const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-20b'
 const AGENT_ID = 'counterfeittrace-investigator'
 const AGENT_NAME = 'CounterfeitTrace investigator'
 const MAX_QUESTION = 2000
@@ -61,8 +61,8 @@ function buildUserMessage({ question, node, signals, neighbours }) {
   return lines.join('\n')
 }
 
-async function callGemini(apiKey, userMessage) {
-  const model = process.env.GEMINI_MODEL || GEMINI_MODEL
+async function callGemini(apiKey, userMessage, env = process.env) {
+  const model = env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
   const response = await fetch(url, {
     method: 'POST',
@@ -70,7 +70,7 @@ async function callGemini(apiKey, userMessage) {
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
       contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 512 },
+      generationConfig: { maxOutputTokens: 512 },
     }),
   })
   const data = await response.json().catch(() => ({}))
@@ -90,8 +90,8 @@ async function callGemini(apiKey, userMessage) {
   }
 }
 
-async function callGroq(apiKey, userMessage) {
-  const model = process.env.GROQ_MODEL || GROQ_MODEL
+async function callGroq(apiKey, userMessage, env = process.env) {
+  const model = env.GROQ_MODEL || DEFAULT_GROQ_MODEL
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -113,8 +113,9 @@ async function callGroq(apiKey, userMessage) {
     const detail = data?.error?.message || `Groq HTTP ${response.status}`
     throw new Error(detail)
   }
-  const text = data?.choices?.[0]?.message?.content
-  if (!text?.trim()) throw new Error('Groq returned an empty reply')
+  const message = data?.choices?.[0]?.message || {}
+  const text = String(message.content || '').trim() || String(message.reasoning || '').trim()
+  if (!text) throw new Error('Groq returned an empty reply')
   const usage = data?.usage || {}
   return {
     text: text.trim(),
@@ -218,13 +219,26 @@ export async function runInvestigate(body, env = process.env) {
 
   let completion
   try {
-    completion = geminiKey
-      ? await callGemini(geminiKey, userMessage)
-      : await callGroq(groqKey, userMessage)
+    if (groqKey) {
+      completion = await callGroq(groqKey, userMessage, env)
+    } else {
+      completion = await callGemini(geminiKey, userMessage, env)
+    }
   } catch (error) {
-    return {
-      status: 502,
-      body: { error: error.message || 'LLM request failed' },
+    if (groqKey && geminiKey) {
+      try {
+        completion = await callGemini(geminiKey, userMessage, env)
+      } catch (fallbackError) {
+        return {
+          status: 502,
+          body: { error: fallbackError.message || error.message || 'LLM request failed' },
+        }
+      }
+    } else {
+      return {
+        status: 502,
+        body: { error: error.message || 'LLM request failed' },
+      }
     }
   }
 
