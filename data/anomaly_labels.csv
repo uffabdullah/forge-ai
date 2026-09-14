@@ -1,6 +1,17 @@
 node_id,anomaly_type,region,description
-DST-015,price_undercut,central,Sells 35-55% below the category baseline price - the signature of dumped or relabelled counterfeit stock undercutting genuine supply.
-DST-016,price_inflated,central,"Charges 2.6-4.0x the category baseline, consistent with fake goods sold as premium originals."
-DST-030,region_mismatch,central,85% of downstream transactions happen outside the region the distributor declares - goods are re-routed through unregistered territory.
-DST-035,burst_timing,east,Volume arrives in a single ~10-day burst with 3x the transaction count instead of an even yearly cadence - one undocumented batch entering the network.
-DST-036,mixed,south,"Hardest case: mild undercut (~0.65x), 40% out-of-region sales and two short bursts. No single signal dominates."
+DST-003,burst_timing,east,Volume arrives in a single ~10-day burst with 3x the transaction count instead of an even yearly cadence - one undocumented batch entering the network.
+DST-004,burst_timing,east,Volume arrives in a single ~10-day burst with 3x the transaction count instead of an even yearly cadence - one undocumented batch entering the network.
+DST-007,price_undercut,west,Sells 35-55% below the category baseline price - the signature of dumped or relabelled counterfeit stock undercutting genuine supply.
+DST-009,region_mismatch,east,85% of downstream transactions happen outside the region the distributor declares - goods are re-routed through unregistered territory.
+DST-011,mixed,central,"Hardest case: mild undercut (~0.65x), 40% out-of-region sales and two short bursts. No single signal dominates."
+DST-012,price_undercut,north,Sells 35-55% below the category baseline price - the signature of dumped or relabelled counterfeit stock undercutting genuine supply.
+DST-013,mixed,east,"Hardest case: mild undercut (~0.65x), 40% out-of-region sales and two short bursts. No single signal dominates."
+DST-016,region_mismatch,central,85% of downstream transactions happen outside the region the distributor declares - goods are re-routed through unregistered territory.
+DST-020,price_inflated,south,"Charges 2.6-4.0x the category baseline, consistent with fake goods sold as premium originals."
+DST-021,burst_timing,central,Volume arrives in a single ~10-day burst with 3x the transaction count instead of an even yearly cadence - one undocumented batch entering the network.
+DST-022,price_undercut,north,Sells 35-55% below the category baseline price - the signature of dumped or relabelled counterfeit stock undercutting genuine supply.
+DST-023,mixed,central,"Hardest case: mild undercut (~0.65x), 40% out-of-region sales and two short bursts. No single signal dominates."
+DST-025,region_mismatch,west,85% of downstream transactions happen outside the region the distributor declares - goods are re-routed through unregistered territory.
+DST-026,price_undercut,east,Sells 35-55% below the category baseline price - the signature of dumped or relabelled counterfeit stock undercutting genuine supply.
+DST-030,price_inflated,central,"Charges 2.6-4.0x the category baseline, consistent with fake goods sold as premium originals."
+DST-039,price_inflated,west,"Charges 2.6-4.0x the category baseline, consistent with fake goods sold as premium originals."

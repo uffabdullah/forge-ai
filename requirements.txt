@@ -1,8 +1,7 @@
 # Python dependencies for data/, model/ and backend/.
-# Deliberately empty for now — fill this in as you add packages, e.g.
-#   pandas
-#   numpy
-#   torch
-#   torch-geometric
-#   supabase
-#   python-dotenv
+# Third-party imports from model/train_gnn.py (stdlib is not listed).
+numpy>=2.0
+pandas>=2.2
+scikit-learn>=1.5
+torch>=2.2
+torch-geometric>=2.5

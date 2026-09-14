@@ -5,10 +5,11 @@ The graph is a directed, bipartite-ish distribution network:
 
     manufacturer  ->  distributor  ->  retailer
 
-Edges are transactions (quantity, unit price, timestamp, region). Five
-distributor nodes are deliberately given anomalous price / region / timing
-patterns that mimic where counterfeit goods get injected into a real network,
-and their IDs are written to ``anomaly_labels.csv`` as ground truth.
+Edges are transactions (quantity, unit price, timestamp, region). Sixteen
+distributor nodes (~40% of the 40 distributors) are given anomalous price /
+region / timing patterns that mimic where counterfeit goods get injected,
+and their IDs are written to ``anomaly_labels.csv`` as ground truth. Sixteen
+is enough that a 70/30 train/val split still holds out several positives.
 
 Outputs
 -------
@@ -53,7 +54,7 @@ REGIONS = ("north", "south", "east", "west", "central")
 N_MANUFACTURERS = 12
 N_DISTRIBUTORS = 40
 N_RETAILERS = 90
-N_ANOMALOUS = 5
+N_ANOMALOUS = 16  # 40% of N_DISTRIBUTORS; 15-20 leaves a healthy majority
 
 # Healthy margins: manufacturers sell at a wholesale discount, distributors
 # resell at a retail markup.
@@ -64,7 +65,7 @@ YEAR_START = pd.Timestamp("2025-01-01 00:00:00")
 YEAR_END = pd.Timestamp("2025-12-31 23:59:59")
 
 # The five counterfeit signatures we inject. Each anomalous distributor gets
-# exactly one profile, in this order.
+# one profile, cycling so every signature appears at least three times.
 ANOMALY_PROFILES: tuple[dict, ...] = (
     {
         "anomaly_type": "price_undercut",
@@ -205,12 +206,15 @@ def build_nodes(rng: np.random.Generator) -> pd.DataFrame:
 def assign_anomalies(
     nodes: pd.DataFrame, rng: np.random.Generator
 ) -> dict[str, dict]:
-    """Pick N_ANOMALOUS distributors and give each one anomaly profile."""
+    """Pick N_ANOMALOUS distributors and cycle the five signatures onto them."""
     distributor_ids = nodes.loc[
         nodes["node_type"] == "distributor", "node_id"
     ].to_numpy()
-    chosen = sorted(rng.choice(distributor_ids, size=N_ANOMALOUS, replace=False))
-    return dict(zip(chosen, ANOMALY_PROFILES))
+    chosen = rng.choice(distributor_ids, size=N_ANOMALOUS, replace=False)
+    profiles = [ANOMALY_PROFILES[i % len(ANOMALY_PROFILES)] for i in range(N_ANOMALOUS)]
+    profiles = [profiles[i] for i in rng.permutation(len(profiles))]
+    paired = sorted(zip(chosen.tolist(), profiles), key=lambda item: item[0])
+    return {node_id: profile for node_id, profile in paired}
 
 
 def build_edges(
@@ -358,6 +362,8 @@ def print_summary(
     print(f"  (transactions span {edges['timestamp'].min()} -> {edges['timestamp'].max()})")
 
     print("\nInjected anomalous distributors:")
+    type_counts = labels["anomaly_type"].value_counts()
+    print("  " + ", ".join(f"{k}={v}" for k, v in type_counts.items()))
     for _, row in labels.iterrows():
         node_id = row["node_id"]
         node_sales = anomaly_sales[anomaly_sales["source_id"] == node_id]

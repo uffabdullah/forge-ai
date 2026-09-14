@@ -8,10 +8,10 @@ results stay reproducible (fixed RNG seed).
 
 | File | Purpose |
 | --- | --- |
-| `generate_transactions.py` | Builds the synthetic supply-chain graph and injects 5 anomalous distributor nodes. Writes the three CSVs below. |
+| `generate_transactions.py` | Builds the synthetic supply-chain graph and injects 16 anomalous distributor nodes. Writes the three CSVs below. |
 | `nodes.csv` | *(generated)* one row per node: `node_id, node_type, region, product_category` |
 | `edges.csv` | *(generated)* one row per transaction: `txn_id, source_id, target_id, quantity, price, timestamp, region, product_category` |
-| `anomaly_labels.csv` | *(generated)* ground truth: `node_id, anomaly_type, region, description` for the 5 injected nodes |
+| `anomaly_labels.csv` | *(generated)* ground truth: `node_id, anomaly_type, region, description` for the 16 injected nodes |
 
 ## Graph shape
 
@@ -33,7 +33,8 @@ change `--seed` to draw a new one.
 
 ## Injected anomalies (what the GNN has to learn)
 
-Five distributors carry one profile each, and `anomaly_labels.csv` is the answer
+Sixteen distributors carry one of five repeating profiles (cycled so every
+signature appears at least three times), and `anomaly_labels.csv` is the answer
 key used for evaluation only — never as a model input:
 
 1. **`price_undercut`** — sells 35–55% below the category baseline.
