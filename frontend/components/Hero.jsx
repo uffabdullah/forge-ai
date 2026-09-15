@@ -1,55 +1,57 @@
 /**
- * Hero — the scroll-storytelling opening section.
- *
- * Presentational only: `stage` is rendered as a full-bleed layer behind the
- * copy (the caller owns whatever mounts into it, e.g. the WebGL graph). The
- * copy is `pointer-events-none` so dragging anywhere on the hero reaches the
- * canvas — add `pointer-events-auto` to the specific element if a real control
- * (button, link, inspector panel) is ever placed here.
+ * Hero — full-bleed Three.js stage with Hubtown-style lower-center copy.
+ * Pointer events pass through copy so the canvas stays orbitable.
  */
-export default function Hero({ id = 'hero', eyebrow, title, subtitle, stats = [], stage, overlay }) {
+export default function Hero({
+  id = 'hero',
+  title,
+  subtitle,
+  cta,
+  onCta,
+  stage,
+  overlay,
+  copyVisible = true,
+}) {
   return (
-    <section
-      id={id}
-      className="relative isolate flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 pt-16"
-    >
-      {/* 3D / background layer */}
+    <section id={id} className="relative isolate h-screen min-h-[40rem] overflow-hidden">
       <div className="absolute inset-0 z-0">{stage}</div>
 
-      {/* Vignette: transparent at the centre so the graph stays crisp, deeper at
-          the edges so the hero melts into the page background. */}
-      <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_at_center,transparent_0%,var(--color-ink-900)_75%)]" />
+      <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_at_center,transparent_20%,rgba(5,11,24,0.55)_100%)]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-2/5 bg-gradient-to-t from-ink-900 via-ink-900/40 to-transparent" />
 
-      <div className="pointer-events-none relative z-10 mx-auto max-w-3xl text-center">
-        {eyebrow && (
-          <p className="mb-4 font-mono text-xs tracking-[0.3em] text-node-distributor uppercase">
-            {eyebrow}
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-[18%] z-10 px-6 text-center transition-opacity duration-500 ${
+          copyVisible ? 'hero-copy-in opacity-100' : 'opacity-0'
+        }`}
+      >
+        <h1 className="mx-auto max-w-4xl font-display text-4xl font-medium tracking-[0.08em] text-white uppercase sm:text-6xl">
+          {title}
+        </h1>
+        {subtitle && (
+          <p className="mx-auto mt-5 max-w-xl text-pretty text-sm leading-relaxed text-slate-400 sm:text-[15px]">
+            {subtitle}
           </p>
         )}
-
-        <h1 className="text-balance text-4xl font-bold text-white sm:text-6xl">{title}</h1>
-
-        {subtitle && (
-          <p className="mt-6 text-pretty text-base text-slate-400 sm:text-lg">{subtitle}</p>
-        )}
-
-        {stats.length > 0 && (
-          <dl className="mt-12 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-ink-600 bg-ink-600 sm:grid-cols-4">
-            {stats.map(({ label, value }) => (
-              <div key={label} className="bg-ink-800/80 px-4 py-5 backdrop-blur-sm">
-                <dd className="font-mono text-2xl font-medium text-white">{value}</dd>
-                <dt className="mt-1 text-xs tracking-wide text-slate-500 uppercase">{label}</dt>
-              </div>
-            ))}
-          </dl>
+        {cta && (
+          <button
+            type="button"
+            onClick={onCta}
+            className="pointer-events-auto mt-8 rounded-full border border-white/15 bg-white/5 px-5 py-2.5 font-display text-[11px] tracking-[0.22em] text-white uppercase backdrop-blur-md transition hover:bg-white/10"
+          >
+            {cta}
+          </button>
         )}
       </div>
 
-      <p className="pointer-events-none absolute bottom-8 z-10 font-mono text-xs text-slate-600">
-        drag to orbit · click a node · scroll ↓
-      </p>
-
-      {overlay ? <div className="pointer-events-none absolute inset-0 z-20">{overlay}</div> : null}
+      {overlay ? (
+        <div
+          className={`absolute inset-0 z-20 transition-opacity duration-500 ${
+            copyVisible ? 'pointer-events-none opacity-100' : 'pointer-events-none opacity-0 [&>*]:pointer-events-none'
+          }`}
+        >
+          {overlay}
+        </div>
+      ) : null}
     </section>
   )
 }

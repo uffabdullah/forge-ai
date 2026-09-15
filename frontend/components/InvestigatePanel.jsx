@@ -90,13 +90,13 @@ export default function InvestigatePanel({
     <div data-reveal className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <form
         onSubmit={onSubmit}
-        className="rounded-2xl border border-white/10 bg-ink-800/40 p-5"
+        className="border border-white/10 bg-white/[0.03] p-5"
       >
-        <p className="font-mono text-[10px] tracking-[0.22em] text-slate-500 uppercase">
+        <p className="font-display text-[10px] tracking-[0.28em] text-slate-500 uppercase">
           selected node
         </p>
         {node ? (
-          <p className="mt-2 font-mono text-lg text-white">
+          <p className="mt-2 font-display text-lg text-white">
             {node.id}
             <span className="ml-2 text-xs text-slate-500">
               {node.region} · score {node.riskScore == null ? '—' : node.riskScore.toFixed(2)}
@@ -116,7 +116,7 @@ export default function InvestigatePanel({
                 key={item.id}
                 type="button"
                 onClick={() => onSelect?.(item.id)}
-                className="rounded-full px-3 py-1 font-mono text-[11px] text-risk-flagged ring-1 ring-risk-flagged/30 hover:bg-white/5"
+                className="rounded-full px-3 py-1 font-display text-[11px] tracking-[0.12em] text-risk-flagged ring-1 ring-risk-flagged/30 hover:bg-white/5"
               >
                 {item.id}
               </button>
@@ -125,28 +125,28 @@ export default function InvestigatePanel({
         )}
 
         <label className="mt-5 block">
-          <span className="font-mono text-[10px] tracking-[0.22em] text-slate-500 uppercase">
+          <span className="font-display text-[10px] tracking-[0.28em] text-slate-500 uppercase">
             ask the agent
           </span>
           <textarea
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
             rows={5}
-            className="mt-2 w-full resize-y rounded-xl border border-white/10 bg-ink-900/60 px-3 py-2 text-sm text-slate-200 outline-none focus:ring-1 focus:ring-white/20"
+            className="mt-2 w-full resize-y border border-white/10 bg-ink-900/60 px-3 py-2 text-sm text-slate-200 outline-none focus:ring-1 focus:ring-white/20"
           />
         </label>
 
         <button
           type="submit"
           disabled={status === 'loading'}
-          className="mt-4 rounded-full border border-risk-flagged/40 bg-ink-900/40 px-4 py-2 font-mono text-[11px] tracking-[0.18em] text-risk-flagged uppercase disabled:opacity-50"
+          className="mt-4 rounded-full border border-white/15 bg-white/5 px-4 py-2 font-display text-[11px] tracking-[0.22em] text-white uppercase disabled:opacity-50"
         >
           {status === 'loading' ? 'Investigating…' : 'Ask agent'}
         </button>
       </form>
 
-      <div className="rounded-2xl border border-white/10 bg-ink-800/40 p-5">
-        <p className="font-mono text-[10px] tracking-[0.22em] text-slate-500 uppercase">
+      <div className="border border-white/10 bg-white/[0.03] p-5">
+        <p className="font-display text-[10px] tracking-[0.28em] text-slate-500 uppercase">
           answer + PRISM trace
         </p>
 

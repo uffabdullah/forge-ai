@@ -32,21 +32,39 @@ export default function Section({
       if (!targets.length) return
       gsap.fromTo(
         targets,
-        { y: 28, opacity: 0 },
+        { y: 48, opacity: 0, rotateX: 8 },
         {
           y: 0,
           opacity: 1,
-          duration: 0.8,
-          stagger: 0.08,
-          ease: 'power2.out',
+          rotateX: 0,
+          duration: 1.05,
+          stagger: 0.1,
+          ease: 'power3.out',
           immediateRender: false,
           scrollTrigger: {
             trigger: root,
-            start: 'top 82%',
+            start: 'top 84%',
             once: true,
           },
         },
       )
+      const title = root.querySelector('h2')
+      if (title) {
+        gsap.fromTo(
+          title,
+          { y: 24 },
+          {
+            y: 0,
+            ease: 'none',
+            scrollTrigger: {
+              trigger: root,
+              start: 'top 90%',
+              end: 'top 30%',
+              scrub: true,
+            },
+          },
+        )
+      }
     }, root)
 
     ScrollTrigger.refresh()
@@ -57,13 +75,13 @@ export default function Section({
     <section
       id={id}
       ref={rootRef}
-      className={`scroll-mt-24 px-6 py-24 sm:py-32 ${className}`}
+      className={`scroll-mt-32 px-6 py-24 sm:px-10 sm:py-32 [perspective:900px] ${className}`}
     >
       <div className="mx-auto max-w-5xl">
         {eyebrow && (
           <p
             data-reveal
-            className="font-mono text-[11px] tracking-[0.28em] text-node-distributor uppercase"
+            className="font-display text-[11px] tracking-[0.32em] text-slate-500 uppercase"
           >
             {eyebrow}
           </p>
@@ -71,7 +89,7 @@ export default function Section({
         {title && (
           <h2
             data-reveal
-            className="mt-3 max-w-2xl text-balance text-3xl font-semibold tracking-tight text-white sm:text-4xl"
+            className="mt-3 max-w-2xl text-balance font-display text-3xl font-medium tracking-[0.04em] text-white uppercase sm:text-4xl"
           >
             {title}
           </h2>

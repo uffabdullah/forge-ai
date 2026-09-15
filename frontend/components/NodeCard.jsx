@@ -16,11 +16,11 @@ export default function NodeCard({ node, signals = [], onClose }) {
   if (!node) return null
 
   return (
-    <article className="pointer-events-auto rounded-2xl border border-white/10 bg-ink-800/60 p-4 shadow-[0_12px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+    <article className="pointer-events-auto border border-white/10 bg-ink-900/55 p-4 backdrop-blur-xl">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-mono text-[10px] tracking-[0.22em] text-slate-500 uppercase">node</p>
-          <h2 className="mt-1 font-mono text-lg text-white">{node.id}</h2>
+          <p className="font-display text-[10px] tracking-[0.28em] text-slate-500 uppercase">node</p>
+          <h2 className="mt-1 font-display text-lg tracking-wide text-white">{node.id}</h2>
         </div>
         <div className="flex items-center gap-2">
           <RiskBadge band={node.riskBand} score={node.riskScore} />

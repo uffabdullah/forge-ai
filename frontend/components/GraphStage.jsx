@@ -16,6 +16,7 @@ export default function GraphStage({
   selectedId = null,
   onSelect,
   sceneRef: apiRef,
+  onReady,
 }) {
   const { mountRef, sceneRef, ready, error: sceneError } = useGraphScene({ nodes, edges, onSelect })
 
@@ -26,6 +27,10 @@ export default function GraphStage({
   useEffect(() => {
     sceneRef.current?.setSelected?.(selectedId ?? null)
   }, [selectedId, ready, sceneRef])
+
+  useEffect(() => {
+    if (ready) onReady?.()
+  }, [onReady, ready])
 
   const failure = error || sceneError
   const pending = !failure && (status === 'loading' || !ready)

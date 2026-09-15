@@ -118,7 +118,9 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
   })
   nodeMesh.instanceMatrix.needsUpdate = true
   if (nodeMesh.instanceColor) nodeMesh.instanceColor.needsUpdate = true
-  scene.add(nodeMesh)
+
+  const graphGroup = new THREE.Group()
+  graphGroup.add(nodeMesh)
 
   const neighborOf = nodes.map(() => new Set())
   edges.forEach((edge) => {
@@ -170,7 +172,8 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
     depthWrite: false,
   })
   const edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial)
-  scene.add(edgeLines)
+  graphGroup.add(edgeLines)
+  scene.add(graphGroup)
 
   // --------------------------------------------------------------- camera ---
   const viewDirection = new THREE.Vector3(0.55, 0.42, 1).normalize()
@@ -182,9 +185,15 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
   }
 
   let homeDistance = fitDistance()
+  const homeDirection = viewDirection.clone()
+  let heroProgress = 0
+  let introScale = 0
+  let introPlayed = false
+  let cameraLocked = true
 
-  camera.position.copy(layout.center).addScaledVector(viewDirection, homeDistance)
+  camera.position.copy(layout.center).addScaledVector(homeDirection, homeDistance * 2.6)
   controls.target.copy(layout.center)
+  controls.autoRotateSpeed = 0.9
   controls.update()
 
   scene.fog = new THREE.Fog(palette.ink, homeDistance * 0.75, homeDistance * 2.6)
@@ -193,6 +202,7 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
   function flyTo(targetPosition, cameraPosition) {
     killFlights()
     controls.enabled = false
+    cameraLocked = true
 
     flyTweens.push(
       gsap.to(camera.position, {
@@ -210,6 +220,7 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
         ease: 'power2.inOut',
         onComplete: () => {
           controls.enabled = true
+          cameraLocked = false
         },
       }),
     )
@@ -270,7 +281,59 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
   }
 
   function resetView() {
-    flyTo(layout.center, layout.center.clone().addScaledVector(viewDirection, homeDistance))
+    flyTo(layout.center, layout.center.clone().addScaledVector(homeDirection, homeDistance))
+  }
+
+  function setHeroProgress(progress) {
+    heroProgress = Math.min(1, Math.max(0, Number(progress) || 0))
+  }
+
+  function playIntro() {
+    if (introPlayed) return
+    introPlayed = true
+    introScale = 0
+    const scaleProxy = { v: 0 }
+    camera.position.copy(layout.center).addScaledVector(homeDirection, homeDistance * 2.6)
+    flyTweens.push(
+      gsap.to(scaleProxy, {
+        v: 1,
+        duration: 1.8,
+        ease: 'power3.out',
+        onUpdate: () => {
+          introScale = scaleProxy.v
+        },
+      }),
+      gsap.to(camera.position, {
+        x: layout.center.x + homeDirection.x * homeDistance,
+        y: layout.center.y + homeDirection.y * homeDistance,
+        z: layout.center.z + homeDirection.z * homeDistance,
+        duration: 2.4,
+        ease: 'power3.inOut',
+        onComplete: () => {
+          cameraLocked = false
+        },
+      }),
+      gsap.to(controls, {
+        autoRotateSpeed: 0.35,
+        duration: 2.4,
+        ease: 'power2.out',
+      }),
+    )
+  }
+
+  const chapterDirs = [
+    new THREE.Vector3(0.55, 0.42, 1).normalize(),
+    new THREE.Vector3(1.0, 0.28, 0.35).normalize(),
+    new THREE.Vector3(-0.2, 0.55, 1).normalize(),
+    new THREE.Vector3(0.15, 0.2, 1).normalize(),
+    new THREE.Vector3(0.8, 0.5, -0.4).normalize(),
+  ]
+
+  function setChapterView(index = 0) {
+    if (userInteracted) return
+    const dir = chapterDirs[index] ?? chapterDirs[0]
+    homeDirection.copy(dir)
+    flyTo(layout.center, layout.center.clone().addScaledVector(dir, homeDistance * 0.92))
   }
 
   // ------------------------------------------------------------ interaction ---
@@ -278,6 +341,7 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
   const pointer = new THREE.Vector2()
   let pointerDown = null
   let userInteracted = false
+  const mouse = { x: 0, y: 0 }
 
   function onPointerDown(event) {
     pointerDown = { x: event.clientX, y: event.clientY }
@@ -309,8 +373,16 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
     }
   }
 
+  function onPointerMove(event) {
+    const rect = renderer.domElement.getBoundingClientRect()
+    if (!rect.width || !rect.height) return
+    mouse.x = ((event.clientX - rect.left) / rect.width - 0.5) * 2
+    mouse.y = ((event.clientY - rect.top) / rect.height - 0.5) * 2
+  }
+
   renderer.domElement.addEventListener('pointerdown', onPointerDown)
   renderer.domElement.addEventListener('pointerup', onPointerUp)
+  renderer.domElement.addEventListener('pointermove', onPointerMove)
 
   // ----------------------------------------------------------------- loop ---
   let visible = true
@@ -318,15 +390,32 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
     if (!visible || document.hidden) return
 
     const t = performance.now() / 1000
+    graphGroup.rotation.y += (mouse.x * 0.12 - graphGroup.rotation.y) * 0.045
+    graphGroup.rotation.x += (mouse.y * 0.05 - graphGroup.rotation.x) * 0.045
+
+    const up = new THREE.Vector3(0, 1, 0)
+    if (!userInteracted && introPlayed && !cameraLocked) {
+      const yaw = heroProgress * 0.55
+      const dist = homeDistance * (1 - heroProgress * 0.16)
+      const dir = homeDirection.clone()
+      dir.applyAxisAngle(up, yaw)
+      camera.position.copy(layout.center).addScaledVector(dir, dist)
+      controls.target.copy(layout.center)
+    }
+
     for (let i = 0; i < nodes.length; i++) {
-      let scale = 1
+      let scale = introScale
       if (nodes[i].isFlagged) {
-        scale = FLAG_SCALE + Math.sin(t * 3.1 + i * 0.45) * FLAG_PULSE
+        scale *= FLAG_SCALE + Math.sin(t * 3.1 + i * 0.45) * FLAG_PULSE
       }
-      if (i === selectedIndex) scale = Math.max(scale, SELECT_SCALE)
-      dummy.position.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2])
-      dummy.scale.setScalar(scale)
-      dummy.rotation.set(0, 0, 0)
+      if (i === selectedIndex) scale = Math.max(scale, SELECT_SCALE * introScale)
+      dummy.position.set(
+        positions[i * 3],
+        positions[i * 3 + 1] + Math.sin(t * 0.7 + i * 0.31) * 0.35,
+        positions[i * 3 + 2],
+      )
+      dummy.scale.setScalar(Math.max(0.001, scale))
+      dummy.rotation.set(0, t * 0.15 + i * 0.01, 0)
       dummy.updateMatrix()
       nodeMesh.setMatrixAt(i, dummy.matrix)
     }
@@ -356,10 +445,14 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
     camera.aspect = width / height
     camera.updateProjectionMatrix()
 
-    if (userInteracted) return
+    if (userInteracted || !introPlayed) return
 
     homeDistance = fitDistance()
-    camera.position.copy(layout.center).addScaledVector(viewDirection, homeDistance)
+    const yaw = heroProgress * 0.55
+    const dist = homeDistance * (1 - heroProgress * 0.16)
+    const dir = homeDirection.clone()
+    dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw)
+    camera.position.copy(layout.center).addScaledVector(dir, dist)
     scene.fog.near = homeDistance * 0.75
     scene.fog.far = homeDistance * 2.6
   }
@@ -375,6 +468,7 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
     resizeObserver?.disconnect()
     renderer.domElement.removeEventListener('pointerdown', onPointerDown)
     renderer.domElement.removeEventListener('pointerup', onPointerUp)
+    renderer.domElement.removeEventListener('pointermove', onPointerMove)
     controls.dispose()
 
     nodeMesh.dispose()
@@ -383,7 +477,7 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
     edgeGeometry.dispose()
     edgeMaterial.dispose()
 
-    scene.remove(nodeMesh, edgeLines)
+    scene.remove(graphGroup)
     renderer.dispose()
     renderer.domElement.remove()
   }
@@ -393,6 +487,9 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
     focusNode,
     resetView,
     setSelected,
+    playIntro,
+    setHeroProgress,
+    setChapterView,
     resize,
     dispose,
     stats: { nodes: nodes.length, edges: edgeCount },

@@ -1,18 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
 
 import AlertList from '@components/AlertList.jsx'
+import BottomBar from '@components/BottomBar.jsx'
 import Footer from '@components/Footer.jsx'
 import GraphStage from '@components/GraphStage.jsx'
 import Hero from '@components/Hero.jsx'
+import IntroGate from '@components/IntroGate.jsx'
 import InvestigatePanel from '@components/InvestigatePanel.jsx'
 import Legend from '@components/Legend.jsx'
+import MenuOverlay from '@components/MenuOverlay.jsx'
 import NodeCard from '@components/NodeCard.jsx'
 import Section from '@components/Section.jsx'
+import SideRail from '@components/SideRail.jsx'
 import SiteNav from '@components/SiteNav.jsx'
 import StatsPanel from '@components/StatsPanel.jsx'
 
+import { playUiSound } from '@/audio/uiSounds.js'
 import { useGraphData } from '@/hooks/useGraphData.js'
 import { useSmoothScroll } from '@/hooks/useSmoothScroll.js'
+import { useUiSound } from '@/hooks/useUiSound.js'
+
+const CHAPTERS = ['network', 'signatures', 'model', 'workspace', 'investigate']
+const CHAPTER_INDEX = {
+  hero: 0,
+  network: 0,
+  signatures: 1,
+  model: 2,
+  workspace: 3,
+  investigate: 4,
+}
 
 const number = (value) => (value == null ? '—' : value.toLocaleString('en-US'))
 
@@ -93,10 +111,17 @@ function isMobile() {
 
 export default function App() {
   const lenisRef = useSmoothScroll()
+  const { enabled: soundOn, toggle: toggleSound, enable: enableSound } = useUiSound()
 
   const { nodes, edges, status, error, stats } = useGraphData()
   const [selectedNodeId, setSelectedNodeId] = useState(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [activeChapter, setActiveChapter] = useState('network')
+  const [heroInView, setHeroInView] = useState(true)
+  const [sceneReady, setSceneReady] = useState(false)
+  const [entered, setEntered] = useState(false)
+  const enteredRef = useRef(false)
   const sceneApiRef = useRef(null)
 
   const selectedNode = useMemo(
@@ -116,11 +141,28 @@ export default function App() {
     (id) => {
       const lenis = lenisRef.current
       if (!lenis) return
-      if (id === 'hero') lenis.scrollTo(0, { duration: 1.1 })
-      else lenis.scrollTo(`#${id}`, { offset: -72, duration: 1.1 })
+      playUiSound('whoosh')
+      sceneApiRef.current?.setChapterView?.(CHAPTER_INDEX[id] ?? 0)
+      if (id === 'hero') lenis.scrollTo(0, { duration: 1.35 })
+      else lenis.scrollTo(`#${id}`, { offset: -100, duration: 1.35 })
     },
     [lenisRef],
   )
+
+  const onSceneReady = useCallback(() => setSceneReady(true), [])
+
+  const onEnter = useCallback(() => {
+    if (enteredRef.current) return
+    enteredRef.current = true
+    setEntered(true)
+    sceneApiRef.current?.playIntro?.()
+    lenisRef.current?.start()
+  }, [lenisRef])
+
+  const onPrimeAudio = useCallback(() => {
+    enableSound()
+    playUiSound('whoosh')
+  }, [enableSound])
 
   const selectFromScene = useCallback((id) => {
     setSelectedNodeId(id)
@@ -140,6 +182,7 @@ export default function App() {
   }, [])
 
   const closeSheet = useCallback(() => setSheetOpen(false), [])
+  const closeMenu = useCallback(() => setMenuOpen(false), [])
 
   const openAlerts = useCallback(() => {
     if (isMobile()) setSheetOpen(true)
@@ -147,29 +190,73 @@ export default function App() {
   }, [jump])
 
   useEffect(() => {
+    const id = window.requestAnimationFrame(() => {
+      if (!enteredRef.current) lenisRef.current?.stop()
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [lenisRef])
+
+  useEffect(() => {
+    if (entered) sceneApiRef.current?.playIntro?.()
+  }, [entered, sceneReady])
+
+  useEffect(() => {
+    if (!entered) return undefined
+    const trigger = ScrollTrigger.create({
+      trigger: '#hero',
+      start: 'top top',
+      end: 'bottom top',
+      onUpdate: (self) => sceneApiRef.current?.setHeroProgress?.(self.progress),
+    })
+    return () => trigger.kill()
+  }, [entered])
+
+  useEffect(() => {
+    const hero = document.getElementById('hero')
+    const sections = CHAPTERS.map((id) => document.getElementById(id)).filter(Boolean)
+    if (!hero) return undefined
+
+    const heroObserver = new IntersectionObserver(
+      ([entry]) => setHeroInView(entry.isIntersecting),
+      { threshold: 0.55 },
+    )
+    heroObserver.observe(hero)
+
+    const chapterObserver = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+        if (visible?.target?.id) setActiveChapter(visible.target.id)
+      },
+      { threshold: 0.35, rootMargin: '-18% 0px -45% 0px' },
+    )
+    sections.forEach((section) => chapterObserver.observe(section))
+
+    return () => {
+      heroObserver.disconnect()
+      chapterObserver.disconnect()
+    }
+  }, [])
+
+  useEffect(() => {
     const onKey = (event) => {
       if (event.key !== 'Escape') return
-      if (sheetOpen) closeSheet()
+      if (menuOpen) closeMenu()
+      else if (sheetOpen) closeSheet()
       else clearSelection()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [clearSelection, closeSheet, sheetOpen])
-
-  const heroStats = [
-    { label: 'nodes', value: number(stats?.nodes) },
-    { label: 'transactions', value: number(stats?.edges) },
-    { label: 'flagged', value: number(stats?.flagged) },
-    { label: 'regions', value: number(stats?.regions?.length) },
-  ]
+  }, [clearSelection, closeMenu, closeSheet, menuOpen, sheetOpen])
 
   const inspector = (
     <>
-      <div className="pointer-events-auto absolute top-24 left-6 hidden w-72 md:block">
+      <div className="pointer-events-auto absolute bottom-28 left-8 hidden w-56 md:block">
         <Legend />
       </div>
       {selectedNode && (
-        <div className="pointer-events-auto absolute top-24 right-6 hidden w-80 md:block">
+        <div className="pointer-events-auto absolute top-24 right-8 hidden w-80 md:block">
           <NodeCard node={selectedNode} signals={selectedSignals} onClose={clearSelection} />
         </div>
       )}
@@ -178,13 +265,81 @@ export default function App() {
 
   return (
     <main className="min-h-screen bg-ink-900">
-      <SiteNav onJump={jump} onAlerts={openAlerts} flagged={stats?.flagged} />
+      {!entered && (
+        <IntroGate
+          ready={sceneReady || (status === 'ready' && nodes.length > 0)}
+          onEnter={onEnter}
+          onPrime={onPrimeAudio}
+        />
+      )}
+
+      <div className={`hud-frame ${entered ? 'hud-enter' : 'opacity-0'}`} aria-hidden />
+
+      <div className={entered ? 'hud-enter' : 'pointer-events-none opacity-0'}>
+        <SiteNav
+          onJump={jump}
+          onAlerts={openAlerts}
+          flagged={stats?.flagged}
+          onMenu={() => setMenuOpen((open) => !open)}
+        />
+      </div>
+
+      <SideRail
+        visible={entered && heroInView}
+        activeId={heroInView ? 'network' : activeChapter}
+        onJump={jump}
+      />
+      <BottomBar
+        visible={entered && heroInView}
+        soundOn={soundOn}
+        onToggleSound={toggleSound}
+        onAsk={() => jump('investigate')}
+      />
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <MenuOverlay open={menuOpen} onClose={closeMenu} onJump={jump} />,
+          document.body,
+        )}
+
+      {typeof document !== 'undefined' &&
+        createPortal(
+          sheetOpen ? (
+            <div className="fixed inset-0 z-50 md:hidden">
+              <button
+                type="button"
+                aria-label="Close alerts"
+                className="absolute inset-0 bg-ink-950/60"
+                onClick={closeSheet}
+              />
+              <div className="sheet-enter pointer-events-auto absolute inset-x-0 bottom-0 max-h-[78vh] space-y-3 overflow-y-auto rounded-t-3xl border border-white/10 bg-ink-900/95 p-4 pb-8 shadow-[0_-20px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+                <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/15" />
+                <AlertList
+                  nodes={nodes}
+                  selectedId={selectedNodeId}
+                  onSelect={selectFromList}
+                  listClassName="max-h-[min(50vh,24rem)]"
+                />
+                {selectedNode && (
+                  <NodeCard node={selectedNode} signals={selectedSignals} onClose={clearSelection} />
+                )}
+              </div>
+            </div>
+          ) : null,
+          document.body,
+        )}
 
       <Hero
-        eyebrow="CounterfeitTrace"
-        title="Find the counterfeit injection point."
+        title={
+          <>
+            Find the counterfeit
+            <br />
+            injection point
+          </>
+        }
         subtitle="A graph neural network scores every node in a medicines, seeds, fertilizer and electronics distribution network — surfacing the price, region and timing fingerprints that give a bad actor away."
-        stats={heroStats}
+        cta="Explore the network"
+        onCta={() => jump('network')}
+        copyVisible={entered && heroInView}
         stage={
           <GraphStage
             nodes={nodes}
@@ -194,6 +349,7 @@ export default function App() {
             selectedId={selectedNodeId}
             onSelect={selectFromScene}
             sceneRef={sceneApiRef}
+            onReady={onSceneReady}
           />
         }
         overlay={inspector}
@@ -202,33 +358,10 @@ export default function App() {
       <button
         type="button"
         onClick={() => setSheetOpen(true)}
-        className="pointer-events-auto fixed right-4 bottom-4 z-30 rounded-full border border-risk-flagged/40 bg-ink-800/90 px-4 py-2 font-mono text-xs text-risk-flagged shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl md:hidden"
+        className="pointer-events-auto fixed right-4 bottom-4 z-30 rounded-full border border-white/15 bg-ink-800/90 px-4 py-2 font-display text-[11px] tracking-[0.18em] text-white uppercase shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl md:hidden"
       >
         Alerts · {number(stats?.flagged)}
       </button>
-
-      {sheetOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <button
-            type="button"
-            aria-label="Close alerts"
-            className="absolute inset-0 bg-ink-950/60"
-            onClick={closeSheet}
-          />
-          <div className="sheet-enter pointer-events-auto absolute inset-x-0 bottom-0 max-h-[78vh] space-y-3 overflow-y-auto rounded-t-3xl border border-white/10 bg-ink-900/95 p-4 pb-8 shadow-[0_-20px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl">
-            <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/15" />
-            <AlertList
-              nodes={nodes}
-              selectedId={selectedNodeId}
-              onSelect={selectFromList}
-              listClassName="max-h-[min(50vh,24rem)]"
-            />
-            {selectedNode && (
-              <NodeCard node={selectedNode} signals={selectedSignals} onClose={clearSelection} />
-            )}
-          </div>
-        </div>
-      )}
 
       <Section
         id="network"
@@ -260,12 +393,12 @@ export default function App() {
             <article
               key={layer.type}
               data-reveal
-              className="rounded-2xl border border-white/10 bg-ink-800/40 p-5"
+              className="border border-white/10 bg-white/[0.03] p-5"
             >
-              <p className={`font-mono text-[11px] tracking-[0.2em] uppercase ${layer.tone}`}>
+              <p className={`font-display text-[11px] tracking-[0.22em] uppercase ${layer.tone}`}>
                 {layer.type}
               </p>
-              <p className="mt-3 font-mono text-3xl text-white">{number(layer.count)}</p>
+              <p className="mt-3 font-display text-3xl text-white">{number(layer.count)}</p>
               <p className="mt-2 text-sm text-slate-500">{layer.note}</p>
             </article>
           ))}
@@ -286,11 +419,13 @@ export default function App() {
             <li
               key={item.id}
               data-reveal
-              className={`rounded-2xl border border-white/10 bg-ink-800/40 p-5 ${
+              className={`border border-white/10 bg-white/[0.03] p-5 ${
                 index === 4 ? 'sm:col-span-2 lg:col-span-1' : ''
               }`}
             >
-              <p className="font-mono text-[11px] text-slate-600">{String(index + 1).padStart(2, '0')}</p>
+              <p className="font-display text-[11px] tracking-[0.22em] text-slate-600">
+                {String(index + 1).padStart(2, '0')}
+              </p>
               <h3 className="mt-2 text-lg text-white">{item.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-400">{item.body}</p>
             </li>
@@ -309,9 +444,9 @@ export default function App() {
             <article
               key={step.n}
               data-reveal
-              className="rounded-2xl border border-white/10 bg-ink-800/40 p-5"
+              className="border border-white/10 bg-white/[0.03] p-5"
             >
-              <p className="font-mono text-[11px] text-risk-flagged">{step.n}</p>
+              <p className="font-display text-[11px] tracking-[0.22em] text-node-distributor">{step.n}</p>
               <h3 className="mt-2 text-lg text-white">{step.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-400">{step.body}</p>
             </article>
@@ -333,7 +468,7 @@ export default function App() {
             {selectedNode ? (
               <NodeCard node={selectedNode} signals={selectedSignals} onClose={clearSelection} />
             ) : (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-ink-800/20 p-8 text-sm text-slate-500">
+              <div className="border border-dashed border-white/10 bg-white/[0.02] p-8 text-sm text-slate-500">
                 Select a node in the graph or an alert on the left.
               </div>
             )}

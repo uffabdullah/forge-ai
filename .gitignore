@@ -59,6 +59,7 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+frontend/tmp-frames/
 
 # NOTE: the generated CSVs in data/ are intentionally NOT ignored — they are
 # small and we want them in the repo for the demo. Delete this line's exception

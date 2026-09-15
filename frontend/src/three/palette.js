@@ -27,14 +27,14 @@ const TOKENS = {
    rendering in black rather than crashing Color's parser. Keep in sync with
    the @theme block. */
 const FALLBACKS = {
-  manufacturer: '#38bdf8',
-  distributor: '#a78bfa',
-  retailer: '#34d399',
+  manufacturer: '#7dd3fc',
+  distributor: '#93c5fd',
+  retailer: '#67e8f9',
   riskLow: '#22c55e',
   riskMedium: '#f59e0b',
   riskHigh: '#ef4444',
-  riskFlagged: '#f43f5e',
-  ink: '#060913',
+  riskFlagged: '#fb7185',
+  ink: '#050b18',
 }
 
 /** @returns {Record<keyof typeof TOKENS, string>} CSS colour strings. */

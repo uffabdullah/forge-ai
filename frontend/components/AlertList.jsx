@@ -18,10 +18,12 @@ export default function AlertList({
     .slice(0, 16)
 
   return (
-    <section className="pointer-events-auto rounded-2xl border border-white/10 bg-ink-800/60 p-3 shadow-[0_12px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+    <section className="pointer-events-auto border border-white/10 bg-ink-900/55 p-3 backdrop-blur-xl">
       <header className="mb-2 flex items-baseline justify-between px-1">
-        <h2 className="font-mono text-[10px] tracking-[0.22em] text-slate-500 uppercase">alerts</h2>
-        <span className="font-mono text-[10px] text-slate-600">{ranked.filter((n) => n.isFlagged).length} flagged</span>
+        <h2 className="font-display text-[10px] tracking-[0.28em] text-slate-500 uppercase">alerts</h2>
+        <span className="font-display text-[10px] tracking-[0.16em] text-slate-600 uppercase">
+          {ranked.filter((n) => n.isFlagged).length} flagged
+        </span>
       </header>
 
       {ranked.length === 0 ? (
