@@ -17,7 +17,6 @@ import SideRail from '@components/SideRail.jsx'
 import SiteNav from '@components/SiteNav.jsx'
 import StatsPanel from '@components/StatsPanel.jsx'
 
-import { playUiSound } from '@/audio/uiSounds.js'
 import { useGraphData } from '@/hooks/useGraphData.js'
 import { useSmoothScroll } from '@/hooks/useSmoothScroll.js'
 import { useUiSound } from '@/hooks/useUiSound.js'
@@ -111,7 +110,7 @@ function isMobile() {
 
 export default function App() {
   const lenisRef = useSmoothScroll()
-  const { enabled: soundOn, toggle: toggleSound, enable: enableSound } = useUiSound()
+  const { enabled: soundOn, toggle: toggleSound } = useUiSound()
 
   const { nodes, edges, status, error, stats } = useGraphData()
   const [selectedNodeId, setSelectedNodeId] = useState(null)
@@ -137,17 +136,19 @@ export default function App() {
     [nodes],
   )
 
-  const jump = useCallback(
-    (id) => {
-      const lenis = lenisRef.current
-      if (!lenis) return
-      playUiSound('whoosh')
-      sceneApiRef.current?.setChapterView?.(CHAPTER_INDEX[id] ?? 0)
-      if (id === 'hero') lenis.scrollTo(0, { duration: 1.35 })
-      else lenis.scrollTo(`#${id}`, { offset: -100, duration: 1.35 })
-    },
-    [lenisRef],
-  )
+  const jump = useCallback((id) => {
+    sceneApiRef.current?.setChapterView?.(CHAPTER_INDEX[id] ?? 0)
+    const lenis = lenisRef.current
+    lenis?.start?.()
+    if (id === 'hero') {
+      if (lenis) lenis.scrollTo(0, { duration: 1.2 })
+      else window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    const target = document.getElementById(id)
+    if (lenis) lenis.scrollTo(`#${id}`, { offset: -100, duration: 1.2 })
+    else if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [lenisRef])
 
   const onSceneReady = useCallback(() => setSceneReady(true), [])
 
@@ -158,11 +159,6 @@ export default function App() {
     sceneApiRef.current?.playIntro?.()
     lenisRef.current?.start()
   }, [lenisRef])
-
-  const onPrimeAudio = useCallback(() => {
-    enableSound()
-    playUiSound('whoosh')
-  }, [enableSound])
 
   const selectFromScene = useCallback((id) => {
     setSelectedNodeId(id)
@@ -190,11 +186,13 @@ export default function App() {
   }, [jump])
 
   useEffect(() => {
-    const id = window.requestAnimationFrame(() => {
-      if (!enteredRef.current) lenisRef.current?.stop()
-    })
-    return () => window.cancelAnimationFrame(id)
-  }, [lenisRef])
+    document.documentElement.style.overflow = entered ? '' : 'hidden'
+    if (entered) lenisRef.current?.start()
+    else lenisRef.current?.stop()
+    return () => {
+      document.documentElement.style.overflow = ''
+    }
+  }, [entered, lenisRef])
 
   useEffect(() => {
     if (entered) sceneApiRef.current?.playIntro?.()
@@ -269,20 +267,22 @@ export default function App() {
         <IntroGate
           ready={sceneReady || (status === 'ready' && nodes.length > 0)}
           onEnter={onEnter}
-          onPrime={onPrimeAudio}
         />
       )}
 
-      <div className={`hud-frame ${entered ? 'hud-enter' : 'opacity-0'}`} aria-hidden />
+      <div className={`hud-frame ${entered ? 'opacity-100' : 'opacity-0'}`} aria-hidden />
 
-      <div className={entered ? 'hud-enter' : 'pointer-events-none opacity-0'}>
-        <SiteNav
-          onJump={jump}
-          onAlerts={openAlerts}
-          flagged={stats?.flagged}
-          onMenu={() => setMenuOpen((open) => !open)}
-        />
-      </div>
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <SiteNav
+            revealed={entered}
+            onJump={jump}
+            onAlerts={openAlerts}
+            flagged={stats?.flagged}
+            onMenu={() => setMenuOpen((open) => !open)}
+          />,
+          document.body,
+        )}
 
       <SideRail
         visible={entered && heroInView}

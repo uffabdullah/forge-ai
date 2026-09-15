@@ -1,6 +1,7 @@
 /**
  * SiteNav — Hubtown-style cinematic chrome.
  * Wordmark left, text links + pills right. Jumps go through Lenis.
+ * Rendered via a portal so a parent transform cannot trap `position: fixed`.
  */
 const LINKS = [
   { id: 'network', label: 'Network' },
@@ -10,11 +11,21 @@ const LINKS = [
   { id: 'investigate', label: 'Investigate' },
 ]
 
-export default function SiteNav({ onJump, onAlerts, flagged = null, onMenu }) {
+export default function SiteNav({
+  onJump,
+  onAlerts,
+  flagged = null,
+  onMenu,
+  revealed = true,
+}) {
   return (
-    <header className="pointer-events-none fixed inset-x-0 top-0 z-[52]">
-      <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-ink-900 via-ink-900/75 to-transparent" />
-      <nav className="relative pointer-events-auto mx-auto flex items-center justify-between gap-4 px-8 py-6 sm:px-12">
+    <header
+      className={`fixed inset-x-0 top-0 z-[80] transition-opacity duration-500 ${
+        revealed ? 'opacity-100' : 'pointer-events-none opacity-0'
+      }`}
+    >
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-ink-900 via-ink-900/70 to-transparent" />
+      <nav className="relative mx-auto flex items-center justify-between gap-4 px-8 py-6 sm:px-12">
         <button
           type="button"
           onClick={() => onJump('hero')}
@@ -49,7 +60,6 @@ export default function SiteNav({ onJump, onAlerts, flagged = null, onMenu }) {
           <button
             type="button"
             onClick={() => (onMenu ? onMenu() : onJump('investigate'))}
-            data-sound="modal"
             className="flex items-center gap-2 rounded-full bg-slate-200 px-4 py-2 font-display text-[11px] tracking-[0.18em] text-ink-950 uppercase"
           >
             <span aria-hidden className="grid grid-cols-2 gap-0.5">

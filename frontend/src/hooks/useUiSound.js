@@ -1,6 +1,5 @@
 /**
- * Global HUD hover/click sounds. One listener on the document so every
- * button, link, and [data-sound] control ticks without per-component wiring.
+ * Optional click tick when Sound is on. Hover is silent.
  */
 import { useCallback, useEffect, useState } from 'react'
 
@@ -20,39 +19,14 @@ export function useUiSound() {
   const [enabled, setEnabled] = useState(false)
 
   useEffect(() => {
-    let last = null
-
-    const onOver = (event) => {
-      const target = isSoundTarget(event.target)
-      if (!target || target === last || target.dataset.sound === 'off') return
-      last = target
-      playUiSound('hover')
-    }
-
-    const onOut = (event) => {
-      const next = isSoundTarget(event.relatedTarget)
-      if (!next) last = null
-    }
-
     const onClick = (event) => {
       const target = isSoundTarget(event.target)
       if (!target || target.dataset.sound === 'off') return
-      playUiSound(target.dataset.sound === 'modal' ? 'modal' : 'click')
+      playUiSound('click')
     }
 
-    document.addEventListener('pointerover', onOver)
-    document.addEventListener('pointerout', onOut)
     document.addEventListener('click', onClick)
-    const unlock = () => {
-      unlockAudio()
-    }
-    window.addEventListener('pointerdown', unlock, { once: true })
-    return () => {
-      document.removeEventListener('pointerover', onOver)
-      document.removeEventListener('pointerout', onOut)
-      document.removeEventListener('click', onClick)
-      window.removeEventListener('pointerdown', unlock)
-    }
+    return () => document.removeEventListener('click', onClick)
   }, [])
 
   const toggle = useCallback(async () => {
@@ -60,14 +34,7 @@ export function useUiSound() {
     if (next) await unlockAudio()
     setSoundEnabled(next)
     setEnabled(next)
-    if (next) playUiSound('click')
   }, [])
 
-  const enable = useCallback(async () => {
-    await unlockAudio()
-    setSoundEnabled(true)
-    setEnabled(true)
-  }, [])
-
-  return { enabled, toggle, enable, play: playUiSound }
+  return { enabled, toggle, play: playUiSound }
 }
