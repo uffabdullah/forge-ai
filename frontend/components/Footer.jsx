@@ -3,7 +3,7 @@
  */
 export default function Footer() {
   return (
-    <footer id="credits" className="scroll-mt-32 border-t border-white/10 px-6 py-20 sm:px-10 sm:py-24">
+    <footer id="credits" className="relative z-20 scroll-mt-32 border-t border-white/10 bg-ink-900 px-6 py-20 sm:px-10 sm:py-24">
       <div className="mx-auto max-w-5xl">
         <p className="font-display text-[11px] tracking-[0.35em] text-white uppercase">
           CounterfeitTrace

@@ -13,8 +13,8 @@ export default function Hero({
   copyVisible = true,
 }) {
   return (
-    <section id={id} className="relative isolate h-screen min-h-[40rem] overflow-hidden">
-      <div className="absolute inset-0 z-0">{stage}</div>
+    <section id={id} className="pointer-events-none relative isolate h-screen min-h-[40rem] overflow-hidden">
+      {stage ? <div className="absolute inset-0 z-0">{stage}</div> : null}
 
       <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_at_center,transparent_20%,rgba(5,11,24,0.55)_100%)]" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-2/5 bg-gradient-to-t from-ink-900 via-ink-900/40 to-transparent" />

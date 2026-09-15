@@ -186,10 +186,18 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
 
   let homeDistance = fitDistance()
   const homeDirection = viewDirection.clone()
-  let heroProgress = 0
+  let scrollProgress = 0
   let introScale = 0
   let introPlayed = false
   let cameraLocked = true
+  const chapterDirs = [
+    new THREE.Vector3(0.55, 0.42, 1).normalize(),
+    new THREE.Vector3(0.82, 0.36, 0.72).normalize(),
+    new THREE.Vector3(-0.12, 0.5, 1).normalize(),
+    new THREE.Vector3(0.22, 0.28, 1).normalize(),
+    new THREE.Vector3(0.68, 0.46, 0.35).normalize(),
+  ]
+  const chapterDir = new THREE.Vector3()
 
   camera.position.copy(layout.center).addScaledVector(homeDirection, homeDistance * 2.6)
   controls.target.copy(layout.center)
@@ -284,8 +292,29 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
     flyTo(layout.center, layout.center.clone().addScaledVector(homeDirection, homeDistance))
   }
 
+  function setScrollProgress(progress) {
+    scrollProgress = Math.min(1, Math.max(0, Number(progress) || 0))
+  }
+
   function setHeroProgress(progress) {
-    heroProgress = Math.min(1, Math.max(0, Number(progress) || 0))
+    setScrollProgress(progress)
+  }
+
+  function cameraDirForScroll(out = chapterDir) {
+    const last = chapterDirs.length - 1
+    const t = scrollProgress * last
+    const i = Math.min(Math.floor(t), last - 1)
+    const f = t - i
+    out.copy(chapterDirs[i]).lerp(chapterDirs[i + 1], f).normalize()
+    return out
+  }
+
+  function applyScrollCamera() {
+    const dir = cameraDirForScroll()
+    const dist = homeDistance * (1.06 - scrollProgress * 0.2)
+    camera.position.copy(layout.center).addScaledVector(dir, dist)
+    controls.target.copy(layout.center)
+    homeDirection.copy(dir)
   }
 
   function playIntro() {
@@ -320,14 +349,6 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
       }),
     )
   }
-
-  const chapterDirs = [
-    new THREE.Vector3(0.55, 0.42, 1).normalize(),
-    new THREE.Vector3(1.0, 0.28, 0.35).normalize(),
-    new THREE.Vector3(-0.2, 0.55, 1).normalize(),
-    new THREE.Vector3(0.15, 0.2, 1).normalize(),
-    new THREE.Vector3(0.8, 0.5, -0.4).normalize(),
-  ]
 
   function setChapterView(index = 0) {
     if (userInteracted) return
@@ -390,17 +411,13 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
     if (!visible || document.hidden) return
 
     const t = performance.now() / 1000
-    graphGroup.rotation.y += (mouse.x * 0.12 - graphGroup.rotation.y) * 0.045
-    graphGroup.rotation.x += (mouse.y * 0.05 - graphGroup.rotation.x) * 0.045
+    const targetYaw = mouse.x * 0.12 + scrollProgress * 0.42
+    const targetPitch = mouse.y * 0.05 + Math.sin(scrollProgress * Math.PI) * 0.08
+    graphGroup.rotation.y += (targetYaw - graphGroup.rotation.y) * 0.045
+    graphGroup.rotation.x += (targetPitch - graphGroup.rotation.x) * 0.045
 
-    const up = new THREE.Vector3(0, 1, 0)
     if (!userInteracted && introPlayed && !cameraLocked) {
-      const yaw = heroProgress * 0.55
-      const dist = homeDistance * (1 - heroProgress * 0.16)
-      const dir = homeDirection.clone()
-      dir.applyAxisAngle(up, yaw)
-      camera.position.copy(layout.center).addScaledVector(dir, dist)
-      controls.target.copy(layout.center)
+      applyScrollCamera()
     }
 
     for (let i = 0; i < nodes.length; i++) {
@@ -448,11 +465,7 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
     if (userInteracted || !introPlayed) return
 
     homeDistance = fitDistance()
-    const yaw = heroProgress * 0.55
-    const dist = homeDistance * (1 - heroProgress * 0.16)
-    const dir = homeDirection.clone()
-    dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw)
-    camera.position.copy(layout.center).addScaledVector(dir, dist)
+    if (!userInteracted && introPlayed && !cameraLocked) applyScrollCamera()
     scene.fog.near = homeDistance * 0.75
     scene.fog.far = homeDistance * 2.6
   }
@@ -489,6 +502,7 @@ export function createGraphScene(container, { nodes = [], edges = [], palette, o
     setSelected,
     playIntro,
     setHeroProgress,
+    setScrollProgress,
     setChapterView,
     resize,
     dispose,

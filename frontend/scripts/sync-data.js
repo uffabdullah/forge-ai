@@ -31,6 +31,7 @@ const FILES = [
   { file: 'nodes.csv', from: join(repoRoot, 'data', 'nodes.csv') },
   { file: 'edges.csv', from: join(repoRoot, 'data', 'edges.csv') },
   { file: 'predictions.csv', from: join(repoRoot, 'model', 'predictions.csv') },
+  { file: 'anomaly_labels.csv', from: join(repoRoot, 'data', 'anomaly_labels.csv') },
 ]
 
 mkdirSync(targetDir, { recursive: true })

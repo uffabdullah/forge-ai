@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react'
 const NODES_URL = '/data/nodes.csv'
 const EDGES_URL = '/data/edges.csv'
 const PRED_URL = '/data/predictions.csv'
+const LABELS_URL = '/data/anomaly_labels.csv'
 
 const PARSE_OPTIONS = { header: true, dynamicTyping: true, skipEmptyLines: true }
 
@@ -81,10 +82,11 @@ export function useGraphData() {
     let cancelled = false
 
     async function load() {
-      const [nodesCsv, edgesCsv, predCsv] = await Promise.all([
+      const [nodesCsv, edgesCsv, predCsv, labelsCsv] = await Promise.all([
         fetchCsv(NODES_URL, controller.signal),
         fetchCsv(EDGES_URL, controller.signal),
         fetchCsvOptional(PRED_URL, controller.signal),
+        fetchCsvOptional(LABELS_URL, controller.signal),
       ])
 
       const warnings = []
@@ -174,8 +176,16 @@ export function useGraphData() {
       for (const node of nodes) byType[node.type] = (byType[node.type] || 0) + 1
 
       const regions = [...new Set(nodes.map((node) => node.region))].sort()
-      const flagged = nodes.filter((node) => node.isFlagged).length
+      const flaggedNodes = nodes.filter((node) => node.isFlagged)
+      const flagged = flaggedNodes.length
       const scored = nodes.filter((node) => node.riskScore != null).length
+
+      const labeled = new Set()
+      for (const row of labelsCsv.rows) {
+        if (row.node_id != null) labeled.add(String(row.node_id))
+      }
+      const truePositives = flaggedNodes.filter((node) => labeled.has(node.id)).length
+      const precision = labeled.size && flagged > 0 ? truePositives / flagged : null
 
       if (cancelled) return
 
@@ -184,7 +194,16 @@ export function useGraphData() {
         edges,
         status: 'ready',
         error: null,
-        stats: { nodes: nodes.length, edges: edges.length, byType, regions, flagged, scored },
+        stats: {
+          nodes: nodes.length,
+          edges: edges.length,
+          byType,
+          regions,
+          flagged,
+          scored,
+          labeled: labeled.size,
+          precision,
+        },
         warnings,
       })
     }

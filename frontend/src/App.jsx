@@ -146,7 +146,7 @@ export default function App() {
       return
     }
     const target = document.getElementById(id)
-    if (lenis) lenis.scrollTo(`#${id}`, { offset: -100, duration: 1.2 })
+    if (lenis) lenis.scrollTo(`#${id}`, { offset: 0, duration: 1.35 })
     else if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [lenisRef])
 
@@ -201,12 +201,20 @@ export default function App() {
   useEffect(() => {
     if (!entered) return undefined
     const trigger = ScrollTrigger.create({
-      trigger: '#hero',
+      trigger: '#story',
       start: 'top top',
-      end: 'bottom top',
-      onUpdate: (self) => sceneApiRef.current?.setHeroProgress?.(self.progress),
+      end: 'bottom bottom',
+      scrub: 0.85,
+      onUpdate: (self) => sceneApiRef.current?.setScrollProgress?.(self.progress),
     })
-    return () => trigger.kill()
+    const refresh = () => ScrollTrigger.refresh()
+    const id = window.setTimeout(refresh, 80)
+    window.addEventListener('load', refresh)
+    return () => {
+      window.clearTimeout(id)
+      window.removeEventListener('load', refresh)
+      trigger.kill()
+    }
   }, [entered])
 
   useEffect(() => {
@@ -262,7 +270,7 @@ export default function App() {
   )
 
   return (
-    <main className="min-h-screen bg-ink-900">
+    <main className="relative min-h-screen bg-transparent">
       {!entered && (
         <IntroGate
           ready={sceneReady || (status === 'ready' && nodes.length > 0)}
@@ -285,12 +293,12 @@ export default function App() {
         )}
 
       <SideRail
-        visible={entered && heroInView}
+        visible={entered}
         activeId={heroInView ? 'network' : activeChapter}
         onJump={jump}
       />
       <BottomBar
-        visible={entered && heroInView}
+        visible={entered}
         soundOn={soundOn}
         onToggleSound={toggleSound}
         onAsk={() => jump('investigate')}
@@ -328,6 +336,20 @@ export default function App() {
           document.body,
         )}
 
+      <div className="pointer-events-auto fixed inset-0 z-0">
+        <GraphStage
+          nodes={nodes}
+          edges={edges}
+          status={status}
+          error={error}
+          selectedId={selectedNodeId}
+          onSelect={selectFromScene}
+          sceneRef={sceneApiRef}
+          onReady={onSceneReady}
+        />
+      </div>
+
+      <div id="story" className="pointer-events-none relative z-10">
       <Hero
         title={
           <>
@@ -340,18 +362,6 @@ export default function App() {
         cta="Explore the network"
         onCta={() => jump('network')}
         copyVisible={entered && heroInView}
-        stage={
-          <GraphStage
-            nodes={nodes}
-            edges={edges}
-            status={status}
-            error={error}
-            selectedId={selectedNodeId}
-            onSelect={selectFromScene}
-            sceneRef={sceneApiRef}
-            onReady={onSceneReady}
-          />
-        }
         overlay={inspector}
       />
 
@@ -365,6 +375,7 @@ export default function App() {
 
       <Section
         id="network"
+        chapter
         eyebrow="The network"
         title="A year of goods, three layers, one graph."
         kicker="Manufacturers sell to distributors, distributors sell to retailers. Regions cluster on each plane so a mismatch sits visibly outside its declared home."
@@ -392,8 +403,7 @@ export default function App() {
           ].map((layer) => (
             <article
               key={layer.type}
-              data-reveal
-              className="border border-white/10 bg-white/[0.03] p-5"
+              className="border border-white/10 bg-ink-900/55 p-5 backdrop-blur-md"
             >
               <p className={`font-display text-[11px] tracking-[0.22em] uppercase ${layer.tone}`}>
                 {layer.type}
@@ -403,13 +413,19 @@ export default function App() {
             </article>
           ))}
         </div>
-        <div className="mt-4" data-reveal>
-          <StatsPanel nodes={stats?.nodes} edges={stats?.edges} flagged={stats?.flagged} />
+        <div className="mt-4">
+          <StatsPanel
+            nodes={stats?.nodes}
+            edges={stats?.edges}
+            flagged={stats?.flagged}
+            precision={stats?.precision}
+          />
         </div>
       </Section>
 
       <Section
         id="signatures"
+        chapter
         eyebrow="How counterfeits hide"
         title="Five sell-side signatures. Upstream stays clean."
         kicker="Counterfeiters still buy genuine stock. The tell is on the way out: price, territory, timing — or a quiet mix of all three."
@@ -418,8 +434,7 @@ export default function App() {
           {SIGNATURES.map((item, index) => (
             <li
               key={item.id}
-              data-reveal
-              className={`border border-white/10 bg-white/[0.03] p-5 ${
+              className={`border border-white/10 bg-ink-900/55 p-5 backdrop-blur-md ${
                 index === 4 ? 'sm:col-span-2 lg:col-span-1' : ''
               }`}
             >
@@ -435,6 +450,7 @@ export default function App() {
 
       <Section
         id="model"
+        chapter
         eyebrow="The model"
         title="Hetero-SAGE, trained on the labels we planted."
         kicker="Supervised on purpose: the synthetic labels are under our control, so a binary head is more reliable for a demo than unsupervised detection."
@@ -443,8 +459,7 @@ export default function App() {
           {MODEL_STEPS.map((step) => (
             <article
               key={step.n}
-              data-reveal
-              className="border border-white/10 bg-white/[0.03] p-5"
+              className="border border-white/10 bg-ink-900/55 p-5 backdrop-blur-md"
             >
               <p className="font-display text-[11px] tracking-[0.22em] text-node-distributor">{step.n}</p>
               <h3 className="mt-2 text-lg text-white">{step.title}</h3>
@@ -456,15 +471,17 @@ export default function App() {
 
       <Section
         id="workspace"
+        chapter
+        persist
         eyebrow="Workspace"
         title="Ranked alerts, one node at a time."
-        kicker="Pick a distributor to fly the camera and read the score. The 3D graph stays mounted in the hero — this is the desk beside it."
+        kicker="Pick a distributor to fly the camera and read the score. The graph stays pinned behind this desk."
       >
         <div className="grid items-start gap-4 lg:grid-cols-2">
-          <div data-reveal className="hidden md:block">
+          <div className="hidden md:block">
             <AlertList nodes={nodes} selectedId={selectedNodeId} onSelect={selectFromList} />
           </div>
-          <div data-reveal className="hidden md:block">
+          <div className="hidden md:block">
             {selectedNode ? (
               <NodeCard node={selectedNode} signals={selectedSignals} onClose={clearSelection} />
             ) : (
@@ -473,7 +490,7 @@ export default function App() {
               </div>
             )}
           </div>
-          <p className="text-sm text-slate-500 md:hidden" data-reveal>
+          <p className="text-sm text-slate-500 md:hidden">
             On this screen, open Alerts from the chip on the graph. The list is a
             bottom sheet so the network stays orbitable.
           </p>
@@ -482,6 +499,8 @@ export default function App() {
 
       <Section
         id="investigate"
+        chapter
+        persist
         eyebrow="Investigate"
         title="Ask why this node is flagged."
         kicker="The browser posts the inspector context to /api/investigate. Gemini or Groq answers; PRISM stores the trace. Keys stay on the server."
@@ -494,6 +513,7 @@ export default function App() {
           onSelect={selectFromList}
         />
       </Section>
+      </div>
 
       <Footer />
     </main>

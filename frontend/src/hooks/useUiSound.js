@@ -34,6 +34,7 @@ export function useUiSound() {
     if (next) await unlockAudio()
     setSoundEnabled(next)
     setEnabled(next)
+    if (next) playUiSound('click')
   }, [])
 
   return { enabled, toggle, play: playUiSound }

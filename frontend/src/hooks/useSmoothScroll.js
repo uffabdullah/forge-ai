@@ -20,7 +20,7 @@ export function useSmoothScroll() {
 
   useEffect(() => {
     const lenis = new Lenis({
-      duration: 1.1,
+      duration: 1.35,
       smoothWheel: true,
       // Let touch devices keep native inertial scrolling.
       syncTouch: false,

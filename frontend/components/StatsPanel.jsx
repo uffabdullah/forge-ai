@@ -1,8 +1,8 @@
 /**
  * StatsPanel — dataset counters for the inspector.
  *
- * Skiper UI / Unlumen-style metric strip. Precision is optional (the GNN
- * reports it at train time; it is not in predictions.csv).
+ * Metric strip. Precision is TP / flagged at the 0.5 decision threshold,
+ * using anomaly_labels.csv as ground truth.
  */
 
 const number = (value) => (value == null ? '—' : Number(value).toLocaleString('en-US'))
